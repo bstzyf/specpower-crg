@@ -209,7 +209,14 @@ validate_discovery() {
   ')
 
   local row_count
-  row_count=$(echo "$reading_content" | awk '/^\|/ && !/^\|[-: |]+\|/' | grep "^|" 2>/dev/null | wc -l | tr -d ' ')
+  # Count only data rows: exclude separator lines AND the first non-separator row (header)
+  row_count=$(echo "$reading_content" | awk '
+    /^\|/ && !/^\|[-: |]+\|/ {
+      if (!header_seen) { header_seen=1; next }
+      count++
+    }
+    END { print count+0 }
+  ')
 
   if [ "$row_count" -ge "$DISCOVERY_MIN_READINGS" ]; then
     _pass "Code Reading Summary has >= $DISCOVERY_MIN_READINGS rows (found $row_count)"
@@ -220,11 +227,18 @@ validate_discovery() {
   # 8. All 5 columns non-empty per Code Reading Summary row
   # Columns: File | Symbol | Why Read | Finding | Decision
   local row_num=0
+  local reading_header_skipped=false
   while IFS= read -r row; do
     # Skip non-table lines
     echo "$row" | grep -q "^|" || continue
     # Skip separator lines (e.g. |---|---|)
     echo "$row" | grep -q "^|[-: |]*|$" && continue
+
+    # Skip the header row (first non-separator table row)
+    if ! $reading_header_skipped; then
+      reading_header_skipped=true
+      continue
+    fi
 
     row_num=$((row_num + 1))
 
@@ -319,7 +333,14 @@ validate_precision_plan() {
   ')
 
   local map_row_count
-  map_row_count=$(echo "$map_content" | awk '/^\|/ && !/^\|[-: |]+\|/' | grep "^|" 2>/dev/null | wc -l | tr -d ' ')
+  # Count only data rows: exclude separator lines AND the first non-separator row (header)
+  map_row_count=$(echo "$map_content" | awk '
+    /^\|/ && !/^\|[-: |]+\|/ {
+      if (!header_seen) { header_seen=1; next }
+      count++
+    }
+    END { print count+0 }
+  ')
 
   if [ "$map_row_count" -ge "$PRECISION_PLAN_MIN_TASKS" ]; then
     _pass "Function-Level Change Map has >= $PRECISION_PLAN_MIN_TASKS rows (found $map_row_count)"
@@ -330,9 +351,16 @@ validate_precision_plan() {
   # All 7 columns non-empty per Change Map row; validate Target and Risk columns
   # Expected columns: Target | Change Type | Rationale | Depends On | Risk | Test Required | Notes
   local map_row_num=0
+  local map_header_skipped=false
   while IFS= read -r row; do
     echo "$row" | grep -q "^|" || continue
     echo "$row" | grep -q "^|[-: |]*|$" && continue
+
+    # Skip the header row (first non-separator table row)
+    if ! $map_header_skipped; then
+      map_header_skipped=true
+      continue
+    fi
 
     map_row_num=$((map_row_num + 1))
 
