@@ -22,6 +22,8 @@ Required CRG tools:
 - query_graph_tool callers/callees/tests_for
 - refactor_tool
 
+> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server.
+
 Use apply_refactor_tool only after:
 
 - refactor_tool preview reviewed

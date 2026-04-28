@@ -14,10 +14,29 @@ Use hotfix workflow.
 - Must add regression test.
 - Must produce rollback plan.
 
-Create minimal OpenSpec hotfix record if needed:
+## OpenSpec hotfix record (optional)
+
+If this hotfix needs to be tracked in OpenSpec, create:
 
 - openspec/changes/hotfix-{issue-id}/proposal.md
 - openspec/changes/hotfix-{issue-id}/tasks.md
+
+When a hotfix OpenSpec record exists, the gate applies **before archive or release-readiness sign-off**:
+
+```
+scripts/check-openspec-gate.sh hotfix-{issue-id}
+scripts/check-crg-evidence.sh hotfix-{issue-id}
+```
+
+If either script fails:
+
+1. Do not mark the hotfix as ready to ship.
+2. Do not run `/opsx:verify` or `/opsx:archive`.
+3. Fix the missing artifacts/evidence, then re-run the scripts.
+
+For hotfixes without an OpenSpec record, skip the OpenSpec gate but still produce CRG evidence in the PR description.
+
+## Debugging
 
 Use:
 
@@ -35,6 +54,8 @@ If production user flow is affected:
 - list_flows_tool
 - get_flow_tool
 - get_affected_flows_tool
+
+> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server.
 
 ## After fix
 

@@ -43,6 +43,8 @@ If the change is cross-module, architecture-sensitive, permission-related, data-
 - get_surprising_connections_tool
 - get_suggested_questions_tool
 
+> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+
 5. Write CRG Evidence into:
 
 - proposal.md → CRG Architecture Context
@@ -83,6 +85,26 @@ Brainstorm must clarify:
 - get_impact_radius_tool
 - list_communities_tool / get_community_tool when target modules changed
 - get_hub_nodes_tool / get_bridge_nodes_tool / get_surprising_connections_tool / get_knowledge_gaps_tool for architecture or cross-module changes
+
+## Gate: before requesting approval
+
+Only after propose + CRG Context Pass + brainstorming + writing all artifacts + CRG Recheck are complete, run:
+
+```
+scripts/check-openspec-gate.sh <change-id>
+scripts/check-crg-evidence.sh <change-id>
+```
+
+If either command fails:
+
+1. Do not tell the user you are "waiting for approval".
+2. Do not implement code.
+3. Identify what is missing (OpenSpec artifact section or CRG Evidence).
+4. Repair the missing content using the existing proposal / design / CRG tool outputs — do not expand scope.
+5. Re-run both scripts.
+6. Only when both scripts pass, continue.
+
+After both scripts pass:
 
 9. Stop and ask for human approval.
 

@@ -4,16 +4,46 @@ Change ID:
 
 $ARGUMENTS
 
-Use superpowers:writing-plans to rewrite the OpenSpec tasks file.
+## Resolve change-id if missing
 
-## Input files
+If `$ARGUMENTS` is empty:
+
+1. Run `scripts/detect-change-id.sh`.
+2. If exactly one active change exists, report it and ask the user to confirm before using it.
+3. If multiple active changes exist, list them and ask the user to pick one.
+4. If none exist, tell the user to run `/spcrd-start <description>` or `/opsx:propose <description>` first, then stop.
+
+Do not proceed until a concrete change-id is chosen.
+
+## Gate: before planning
+
+Before writing the plan, run:
+
+```
+scripts/check-openspec-gate.sh $ARGUMENTS
+scripts/check-crg-evidence.sh $ARGUMENTS
+```
+
+If either command fails:
+
+1. Do not run `superpowers:writing-plans`.
+2. Report exactly what is missing.
+3. If the missing item can be fixed from existing context, fix the OpenSpec artifact or CRG Evidence first.
+4. Re-run the failed script.
+5. Continue only after both scripts pass.
+
+## Plan phase
+
+Use `superpowers:writing-plans` to rewrite the OpenSpec tasks file.
+
+### Input files
 
 - openspec/changes/$ARGUMENTS/proposal.md
 - openspec/changes/$ARGUMENTS/design.md
 - openspec/changes/$ARGUMENTS/specs/**
 - openspec/changes/$ARGUMENTS/tasks.md
 
-## CRG Planning Analysis
+### CRG Planning Analysis
 
 Before writing the plan, run these CRG tools:
 
@@ -31,7 +61,9 @@ For complex flows, also use:
 - get_flow_tool
 - find_large_functions_tool
 
-## Output
+> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+
+### Output
 
 Rewrite:
 

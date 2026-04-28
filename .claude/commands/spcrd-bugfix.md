@@ -4,7 +4,24 @@ Bug:
 
 $ARGUMENTS
 
-Use lightweight bugfix workflow unless behavior/spec changes are discovered.
+Use the lightweight bugfix workflow unless behavior/spec changes are discovered.
+
+## Gate policy
+
+A plain bugfix does **not** create an OpenSpec change, so the OpenSpec gate scripts are **not** run here.
+
+However, as soon as the bug analysis reveals that expected behavior, public API, data model, or spec must change:
+
+1. Stop bugfix workflow.
+2. Run `/opsx:propose fix-{bug-name}`.
+3. From that point treat it as a feature-style change:
+   - `/spcrd-plan fix-{bug-name}`
+   - `/spcrd-dev fix-{bug-name}`
+   - `/spcrd-review fix-{bug-name}`
+   - `/spcrd-archive fix-{bug-name}`
+4. All feature-style gate scripts apply from that point.
+
+## Debugging
 
 Use:
 
@@ -22,6 +39,8 @@ If root cause is unclear, also use:
 - traverse_graph_tool
 - get_affected_flows_tool
 - get_review_context_tool
+
+> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server.
 
 ## Then
 

@@ -31,6 +31,27 @@ Use project commands instead of ad-hoc long prompts:
 7. If behavior or scope changes, update OpenSpec artifacts before continuing.
 8. Archive only after review, tests, CRG Archive Gate, and `/opsx:verify` pass.
 
+## Gate enforcement
+
+Gates are not advisory — they run as the **first step** (or, for `/spcrd-start`, as the **last step before approval**) of each phase command.
+
+| Command | Gate timing | On failure |
+|---|---|---|
+| `/spcrd-start` | after propose + CRG + brainstorm + write-back | do not request approval; fix artifacts/evidence; re-run |
+| `/spcrd-plan` | first step | do not run `superpowers:writing-plans` |
+| `/spcrd-dev` | first step | do not run `superpowers:subagent-driven-development` |
+| `/spcrd-review` | first step | do not enter final review |
+| `/spcrd-archive` | first step and again right before `/opsx:verify` | do not run `/opsx:verify` or `/opsx:archive` |
+| `/spcrd-audit` | first step | **report-only**, no auto-repair unless requested |
+| `/spcrd-bugfix` | not required for plain bugfixes | if upgraded to an OpenSpec change, feature-style gates apply |
+| `/spcrd-hotfix` | before archive/release sign-off, only if a hotfix OpenSpec record exists | do not mark ready to ship |
+
+If `$ARGUMENTS` is missing for a command that needs a change-id, Claude will run `scripts/detect-change-id.sh` and either confirm the single active change, list multiple active changes for selection, or ask the user to run `/spcrd-start` first.
+
+## CRG tool names
+
+Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual names exposed by the CRG MCP server and record the exact names used inside CRG Evidence so `/spcrd-audit` can verify usage later.
+
 ## Prerequisites
 
 ### OpenSpec
@@ -108,6 +129,8 @@ openspec/changes/archive/**
 │           └── SKILL.md
 ├── scripts/
 │   ├── install-ai-workflow-kit.sh
+│   ├── build-installer.sh
+│   ├── verify-install.sh
 │   ├── check-crg-evidence.sh
 │   ├── check-openspec-gate.sh
 │   └── detect-change-id.sh
@@ -150,11 +173,26 @@ CRG evidence audit:
 /spcrd-audit add-user-search
 ```
 
-## Gate scripts
+## Gate & utility scripts
 
 - `scripts/check-openspec-gate.sh <change-id>` — verifies proposal / design / tasks / specs exist.
 - `scripts/check-crg-evidence.sh <change-id>` — verifies CRG evidence and baseline tool names appear.
-- `scripts/detect-change-id.sh` — lists active change ids under `openspec/changes/`.
+- `scripts/detect-change-id.sh` — lists active change-ids under `openspec/changes/`.
+- `scripts/verify-install.sh [root]` — acceptance checks (§14.1–14.3); exits non-zero if any command, script, or embedded gate is missing.
+- `scripts/build-installer.sh` — regenerates `install-ai-workflow-kit.sh` from the current source files (run after editing commands or scripts).
+
+## Dry run acceptance
+
+After installing into a fresh project:
+
+```
+scripts/verify-install.sh .
+/spcrd-start test workflow kit with a tiny harmless change
+scripts/detect-change-id.sh
+scripts/check-openspec-gate.sh <change-id>
+scripts/check-crg-evidence.sh <change-id>
+/spcrd-plan <change-id>   # confirm plan runs the gate first
+```
 
 ## Success criteria
 
@@ -164,4 +202,4 @@ CRG evidence audit:
 - Superpowers automatically drives brainstorm / plan / dev / review / verify.
 - OpenSpec stores the long-term memory of proposals / design / specs / tasks / archive.
 - `/spcrd-audit` can verify evidence completeness before review.
-- Gate scripts can verify readiness before archive.
+- Gate scripts are invoked automatically by the commands — not by trust.

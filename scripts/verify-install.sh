@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# verify-install.sh — acceptance checks for the AI Workflow Kit (spcrd prefix).
+#
+# Implements §14.1–14.3 from the implementation handbook:
+#   1. All nine commands exist.
+#   2. All three gate scripts exist and are executable.
+#   3. Commands that need an embedded gate actually embed it.
+#
+# Exits non-zero on any failure and prints a summary.
+
+set -euo pipefail
+
+root="${1:-.}"
+cd "$root"
+
+fail=0
+note() { printf "  %s\n" "$*"; }
+ok()   { printf "  \033[32mok\033[0m  %s\n" "$*"; }
+bad()  { printf "  \033[31mfail\033[0m %s\n" "$*"; fail=$((fail+1)); }
+
+echo "[1/4] commands exist"
+required_commands=(
+  .claude/commands/spcrd-start.md
+  .claude/commands/spcrd-plan.md
+  .claude/commands/spcrd-dev.md
+  .claude/commands/spcrd-review.md
+  .claude/commands/spcrd-archive.md
+  .claude/commands/spcrd-bugfix.md
+  .claude/commands/spcrd-hotfix.md
+  .claude/commands/spcrd-refactor.md
+  .claude/commands/spcrd-audit.md
+)
+for f in "${required_commands[@]}"; do
+  if [ -f "$f" ]; then ok "$f"; else bad "missing $f"; fi
+done
+
+echo ""
+echo "[2/4] gate scripts exist and are executable"
+required_scripts=(
+  scripts/check-crg-evidence.sh
+  scripts/check-openspec-gate.sh
+  scripts/detect-change-id.sh
+)
+for f in "${required_scripts[@]}"; do
+  if [ ! -f "$f" ]; then
+    bad "missing $f"
+  elif [ ! -x "$f" ]; then
+    bad "$f is not executable (run: chmod +x $f)"
+  else
+    ok "$f"
+  fi
+done
+
+echo ""
+echo "[3/4] commands embed gate script calls"
+gated_commands=(
+  .claude/commands/spcrd-plan.md
+  .claude/commands/spcrd-dev.md
+  .claude/commands/spcrd-review.md
+  .claude/commands/spcrd-archive.md
+  .claude/commands/spcrd-audit.md
+)
+for f in "${gated_commands[@]}"; do
+  if [ ! -f "$f" ]; then
+    bad "$f missing (cannot check gate header)"
+    continue
+  fi
+  if grep -q "check-openspec-gate.sh" "$f" && grep -q "check-crg-evidence.sh" "$f"; then
+    ok "$f embeds both gate scripts"
+  else
+    bad "$f does not embed both gate scripts"
+  fi
+done
+
+echo ""
+echo "[4/4] spcrd-start.md runs gate after artifacts"
+if [ -f .claude/commands/spcrd-start.md ]; then
+  if grep -q "check-openspec-gate.sh" .claude/commands/spcrd-start.md \
+     && grep -q "check-crg-evidence.sh" .claude/commands/spcrd-start.md; then
+    ok ".claude/commands/spcrd-start.md embeds gate scripts at the end"
+  else
+    bad "spcrd-start.md must embed both gate scripts"
+  fi
+fi
+
+echo ""
+if [ "$fail" -eq 0 ]; then
+  printf "\033[32mAll acceptance checks passed.\033[0m\n"
+  exit 0
+else
+  printf "\033[31m%s acceptance check(s) failed.\033[0m\n" "$fail"
+  exit 1
+fi
