@@ -19,69 +19,148 @@ mkdir -p scripts
 
 
 cat > .claude/commands/spcrg-start.md <<'AIWK_EOF'
-# Spcrg Start: OpenSpec OPSX + Superpowers + CRG
+# Spcrg Start: OpenSpec OPSX + CRG Discovery Protocol
 
 User input:
 
 $ARGUMENTS
 
-Start a new feature or significant change using the mandatory project workflow.
+Start a new feature or significant change using the mandatory V5 project workflow.
 
-## Steps
+## Parameter resolution
 
-1. Run OpenSpec propose:
+If `$ARGUMENTS` is empty, proceed — this command always creates a new change. The change-id will be assigned by `/opsx:propose`.
 
+## Step 1: Create OpenSpec artifacts
+
+Run:
+
+```
 /opsx:propose $ARGUMENTS
+```
 
-2. Do not implement code.
+Do not implement code. After the proposal is created, identify the change-id and verify these files exist:
 
-3. After OpenSpec artifacts are created, identify the change-id and verify these files exist:
+- `openspec/changes/<change-id>/proposal.md`
+- `openspec/changes/<change-id>/design.md`
+- `openspec/changes/<change-id>/specs/**`
+- `openspec/changes/<change-id>/tasks.md`
 
-- openspec/changes/{change-id}/proposal.md
-- openspec/changes/{change-id}/design.md
-- openspec/changes/{change-id}/specs/**
-- openspec/changes/{change-id}/tasks.md
+## CRG Discovery Protocol
 
-4. Run CRG Context Pass.
+### Step 1: Graph readiness
 
-Required CRG tools:
+- Build or update the CRG graph if it is missing or stale (more than 7 days since last build).
+- Use `build_or_update_graph` if needed.
+- Record graph freshness in Discovery Metadata as one of: `fresh | rebuilt | stale | unavailable`.
 
-- build_or_update_graph_tool if graph is missing or stale
-- list_graph_stats_tool
-- get_minimal_context_tool
-- get_architecture_overview_tool
-- list_communities_tool
-- get_community_tool for relevant communities
-- semantic_search_nodes_tool
-- query_graph_tool for callers/callees/imports/tests_for
-- get_impact_radius_tool if target files/modules are known
+### Step 2: Divergent search
 
-If the change is cross-module, architecture-sensitive, permission-related, data-model-related, or core-flow-related, also use:
+- Run `semantic_search_nodes` with 2–4 requirement-derived queries covering different aspects of the change.
+- Run `list_communities` to understand module boundaries.
+- Record each query and the count of top hits.
 
-- get_hub_nodes_tool
-- get_bridge_nodes_tool
-- get_knowledge_gaps_tool
-- get_surprising_connections_tool
-- get_suggested_questions_tool
+### Step 3: Mandatory Code Reading
 
-> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+For the top N hits (N ≤ `config.thresholds.maxCallChainDepth * 4`, default 8):
 
-5. Write CRG Evidence into:
+1. Read the actual source file containing the hit.
+2. Read the key symbol implementation.
+3. Use `query_graph callers/callees` to identify upstream and downstream code.
+4. Read the key caller and callee implementations.
+5. Record every file/symbol examined in the Code Reading Summary table with all 5 columns filled:
+   - File, Symbol, Why Read, Finding, Decision.
 
-- proposal.md → CRG Architecture Context
-- design.md → CRG Impact Analysis
+Do not skip this step. Do not write raw CRG output. Write decision evidence.
 
-6. Use superpowers:brainstorming.
+### Step 4: Decision Synthesis
 
-Inputs:
+From the code you read, derive:
 
-- proposal.md
-- design.md
-- specs/**
-- tasks.md
-- CRG Evidence
+- **Involved Modules** — which modules are touched and whether they are modify / add / read-only
+- **Entry Points** — key file:function pairs with caller counts
+- **Existing Patterns** — patterns to adopt or avoid, each with a reference file:function
+- **Risk Boundary** — expected_changed_files, expected_changed_symbols, expected_affected_flows, hub_nodes, bridge_nodes
+- **Split decision** — whether this requirement should become multiple OpenSpec changes
 
-Brainstorm must clarify:
+### Step 5: Targeted Risk Tools
+
+Run only when signals warrant:
+
+- `get_impact_radius` once target files are confirmed
+- `get_hub_nodes` if the change is architecture-sensitive
+- `get_bridge_nodes` if the change crosses module boundaries
+- `get_knowledge_gaps` if information is incomplete
+- `get_surprising_connections` if unexpected dependencies appear
+
+### Step 6: Write Structured Discovery
+
+Write `## CRG Discovery` into `design.md` following the V5 schema exactly:
+
+```
+## CRG Discovery
+
+### Discovery Metadata
+- generated_at: <ISO 8601 UTC>
+- generated_by: /spcrg-start
+- crg_graph_status: fresh | rebuilt | stale | unavailable
+- source_requirement: <requirement summary>
+
+### Search Queries
+- <query text> → top hits: <N>
+
+### Code Reading Summary
+| File | Symbol | Why Read | Finding | Decision |
+|---|---|---|---|---|
+| <path> | <symbol or (file)> | <reason> | <finding> | modify | add | reuse | reuse-pattern | avoid | read-only |
+
+### Involved Modules
+- <module> — <reason> — modify | add | read-only
+
+### Entry Points
+- <file:function> — <purpose> — caller count: <N>
+
+### Existing Patterns
+- <pattern name> — reference <file:function> — adopt | avoid
+
+### Risk Boundary
+- expected_changed_files: <integer>
+- expected_changed_symbols: <integer>
+- expected_affected_flows: <list or []>
+- hub_nodes: <list or none>
+- bridge_nodes: <list or none>
+
+### Open Questions
+- <human-answerable question, or "none">
+```
+
+Write a short CRG Risk Summary into `proposal.md`. Never paste raw CRG tool output into any OpenSpec file.
+
+## V5 Mandatory Rule: Read Before Decide
+
+After `semantic_search_nodes` or community discovery, you MUST read the actual source files for the top relevant hits before deciding target modules or writing implementation guidance.
+
+For every file/symbol included in `## CRG Discovery`, record:
+
+- why it was selected
+- what code was read
+- what was learned
+- the resulting decision: `modify | add | reuse | reuse-pattern | avoid | read-only`
+
+Do not write raw CRG output as evidence. Write decision evidence.
+
+If the graph is unavailable or stale and cannot be rebuilt, STOP. Do not fabricate a Discovery section.
+
+## Brainstorming
+
+Use `superpowers:brainstorming` with these inputs:
+
+- `proposal.md`
+- `design.md` (including `## CRG Discovery`)
+- `specs/**`
+- `tasks.md`
+
+Brainstorming must clarify:
 
 - requirement boundaries
 - technical approach
@@ -92,50 +171,70 @@ Brainstorm must clarify:
 - CRG-discovered risks
 - whether this should be split into multiple OpenSpec changes
 
-7. Update:
+After brainstorming, update `proposal.md`, `design.md`, `specs/**`, and `tasks.md`.
 
-- proposal.md
-- design.md
-- specs/**
-- tasks.md
+## Optional CRG Recheck
 
-8. If brainstorming changes target modules, API boundaries, data models, permissions, testing strategy, E2E scope, or task split, run CRG Recheck using:
+If brainstorming changes target modules, API boundaries, data models, permissions, testing strategy, E2E scope, or the task split decision, run a targeted CRG Recheck:
 
-- semantic_search_nodes_tool
-- query_graph_tool callers/callees/imports/tests_for
-- get_impact_radius_tool
-- list_communities_tool / get_community_tool when target modules changed
-- get_hub_nodes_tool / get_bridge_nodes_tool / get_surprising_connections_tool / get_knowledge_gaps_tool for architecture or cross-module changes
+- `semantic_search_nodes` on the newly identified areas
+- `query_graph callers/callees/imports/tests_for` for new entry points
+- `get_impact_radius` if the scope changed
+- `list_communities` / `get_community` if target modules changed
+- `get_hub_nodes` / `get_bridge_nodes` / `get_surprising_connections` / `get_knowledge_gaps` for architecture or cross-module changes
+
+Update `## CRG Discovery` if the recheck produced materially different findings.
 
 ## Gate: before requesting approval
 
-Only after propose + CRG Context Pass + brainstorming + writing all artifacts + CRG Recheck are complete, run:
+After all artifacts, CRG Discovery, brainstorming, and optional recheck are complete, run:
 
 ```
 scripts/check-openspec-gate.sh <change-id>
-scripts/check-crg-evidence.sh <change-id>
+AIWK_CHECK_CRG_MODE=shape-only scripts/check-crg-evidence.sh <change-id>
 ```
 
-If either command fails:
+On failure:
 
 1. Do not tell the user you are "waiting for approval".
 2. Do not implement code.
-3. Identify what is missing (OpenSpec artifact section or CRG Evidence).
-4. Repair the missing content using the existing proposal / design / CRG tool outputs — do not expand scope.
+3. Identify the missing sections or fields.
+4. Repair the missing content using the Discovery Protocol — do not expand scope.
 5. Re-run both scripts.
-6. Only when both scripts pass, continue.
+6. Only when both pass, continue.
 
-After both scripts pass:
+## State write
 
-9. Stop and ask for human approval.
+After both gate scripts pass, write `.ai-workflow-kit/state/<change-id>.json` with:
 
-Do not implement code.
+```json
+{
+  "changeId": "<change-id>",
+  "version": "5",
+  "lastUpdatedAt": "<ISO 8601 UTC>",
+  "lastSessionId": "<AIWK_SESSION_ID>",
+  "phases": {
+    "start": {
+      "status": "completed",
+      "completedAt": "<ISO 8601 UTC>",
+      "sessionId": "<AIWK_SESSION_ID>",
+      "treeHash": "<git ls-files --stage | sha256sum | cut -c1-16>"
+    }
+  }
+}
+```
 
-Stop if CRG is unavailable, stale, or fails.
+Then stop and ask for human approval. Do not implement code.
+
+## Stop conditions
+
+- CRG unavailable, stale, and cannot be rebuilt → STOP immediately. Do not fabricate a Discovery section.
+- OpenSpec gate or CRG evidence gate fails repeatedly and cannot be repaired → STOP and report the specific failure.
+- Brainstorming determines this requirement is too broad → STOP and recommend splitting into multiple `/spcrg-start` invocations.
 AIWK_EOF
 
 cat > .claude/commands/spcrg-plan.md <<'AIWK_EOF'
-# Spcrg Plan
+# Spcrg Plan: CRG Precision Mapping Protocol
 
 Change ID:
 
@@ -148,7 +247,7 @@ If `$ARGUMENTS` is empty:
 1. Run `scripts/detect-change-id.sh`.
 2. If exactly one active change exists, report it and ask the user to confirm before using it.
 3. If multiple active changes exist, list them and ask the user to pick one.
-4. If none exist, tell the user to run `/spcrg-start <description>` or `/opsx:propose <description>` first, then stop.
+4. If none exist, tell the user to run `/spcrg-start <description>` first, then stop.
 
 Do not proceed until a concrete change-id is chosen.
 
@@ -164,70 +263,143 @@ scripts/check-crg-evidence.sh $ARGUMENTS
 If either command fails:
 
 1. Do not run `superpowers:writing-plans`.
-2. Report exactly what is missing.
+2. Report exactly what is missing (section name, field name, row count).
 3. If the missing item can be fixed from existing context, fix the OpenSpec artifact or CRG Evidence first.
 4. Re-run the failed script.
 5. Continue only after both scripts pass.
 
-## Plan phase
+## CRG Precision Mapping Protocol
 
-Use `superpowers:writing-plans` to rewrite the OpenSpec tasks file.
+Do NOT repeat `/spcrg-start`'s broad discovery unless `design.md#CRG Discovery` is missing or older than 7 days. Inherit and extend, do not re-search from scratch.
 
-### Input files
+### Step 1: Inherit Discovery
 
-- openspec/changes/$ARGUMENTS/proposal.md
-- openspec/changes/$ARGUMENTS/design.md
-- openspec/changes/$ARGUMENTS/specs/**
-- openspec/changes/$ARGUMENTS/tasks.md
+Read `design.md#CRG Discovery`. The following are your starting state:
 
-### CRG Planning Analysis
+- **Entry Points** — file:function pairs to trace
+- **Involved Modules** — modify / add / read-only designations
+- **Risk Boundary** — expected_changed_files, expected_changed_symbols, hub_nodes, bridge_nodes
 
-Before writing the plan, run these CRG tools:
+### Step 2: Expand via call graph
 
-Required:
+For each Entry Point marked `modify` or `add`:
 
-- get_minimal_context_tool
-- semantic_search_nodes_tool
-- query_graph_tool for callers/callees/imports/tests_for
-- get_impact_radius_tool
+1. Run `query_graph callers/callees` with depth ≤ `config.thresholds.maxCallChainDepth` (default 2).
+2. Read the actual source code of every caller and callee flagged as a modify candidate.
+3. Record each examined symbol as a row in the Function-Level Change Map table.
 
-For complex flows, also use:
+### Step 3: Test coverage pass
 
-- traverse_graph_tool
-- list_flows_tool
-- get_flow_tool
-- find_large_functions_tool
+For each symbol in the Function-Level Change Map:
 
-> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+1. Run `query_graph pattern="tests_for"`.
+2. Read the existing test file.
+3. Decide: `extend | new file | explicit no-test-justification`.
+4. Record in the Test Coverage Plan table.
 
-### Output
+### Step 4: Phase grouping
 
-Rewrite:
+Group tasks into phases. Each phase must:
 
-openspec/changes/$ARGUMENTS/tasks.md
+- Touch ≤ 5 files
+- Have a runnable `verification_command`
+- Complete its own Post-Phase Verification independently
 
-Requirements:
+### Step 5: Hand off to superpowers:writing-plans
 
-1. Preserve OpenSpec checklist format.
-2. Every task must include:
-   - task id
-   - exact files
-   - TDD steps
-   - verification command
-   - related spec/design reference
-   - related CRG evidence
-3. Every phase must include:
-   - CRG Pre-Phase Check
-   - Tasks
-   - CRG Post-Phase Check
-4. Do not expand scope beyond OpenSpec.
-5. Stop after writing the plan and ask for execution approval.
+Pass the Precision Mapping output — Entry Points, Function-Level Change Map, Test Coverage Plan, Phase grouping — as input to `superpowers:writing-plans`.
 
-If CRG evidence is missing, run CRG first.
+Superpowers produces TDD-structured tasks at file:function level:
+
+- red (failing test)
+- green (minimal implementation)
+- refactor (improve without breaking)
+
+### Step 6: Write Evidence
+
+Write `## CRG Precision Plan` into `tasks.md` per the V5 schema exactly:
+
+```
+## CRG Precision Plan
+
+### Mapping Metadata
+- based_on_discovery: <timestamp from Discovery Metadata>
+- generated_by: /spcrg-plan
+- generated_at: <ISO 8601 UTC>
+
+### Function-Level Change Map
+| Task | Target | Current Behavior | Required Change | Tests | Reference Pattern | Risk |
+|---|---|---|---|---|---|---|
+| <id> | <file:symbol> | <text> | <text> | <test path or "none-with-justification"> | <file:symbol> | low | medium | high |
+
+### Test Coverage Plan
+| Changed Symbol | Existing Test | New Test Case | Verification Command |
+|---|---|---|---|
+
+### Phase Plan
+
+#### Phase N: <name>
+- expected_files: [...]
+- expected_symbols: [...]
+- required_tests: [...]
+- verification_command: `<command>`
+- crg_post_phase_checks: [<tool names to run in Post-Phase Verification>]
+```
+
+## V5 Task Granularity Rule
+
+Tasks MUST be written at file:function level.
+
+BAD:
+```
+- [ ] Modify UserService
+```
+
+GOOD:
+```
+- [ ] 1.2 Extend src/services/UserService.ts:searchUsers() to accept email filter
+        - Current behavior: only filters by displayName
+        - Required change: add optional email predicate; preserve pagination
+        - Reference pattern: src/services/UserService.ts:findByName()
+        - TDD: write failing test → red → minimal impl → green → refactor
+        - Verification: pnpm test tests/services/UserService.test.ts
+        - CRG evidence: design.md#CRG Discovery, tasks.md#CRG Precision Plan row 1.2
+```
+
+Every task must include:
+
+- task id
+- exact `file:function` target
+- current behavior description
+- required change description
+- TDD steps (red → green → refactor)
+- verification command
+- reference pattern (file:function, or "none")
+- related CRG evidence reference
+
+## State write
+
+After the plan is written and execution approval is granted, write `.ai-workflow-kit/state/<change-id>.json` with `phase=plan`:
+
+```json
+{
+  "phases": {
+    "plan": {
+      "status": "completed",
+      "completedAt": "<ISO 8601 UTC>",
+      "sessionId": "<AIWK_SESSION_ID>",
+      "treeHash": "<git ls-files --stage | sha256sum | cut -c1-16>",
+      "plannedPhases": <integer from Phase Plan>
+    }
+  }
+}
+```
+
+Stop after writing the plan and ask for execution approval. Do not implement code.
 AIWK_EOF
 
 cat > .claude/commands/spcrg-dev.md <<'AIWK_EOF'
-# Spcrg Development
+# Spcrg Development: Delta Check Protocol + Post-Phase Verification
 
 Change ID:
 
@@ -257,77 +429,163 @@ If either command fails:
 
 1. Do not run `superpowers:subagent-driven-development`.
 2. Do not edit code.
-3. Report missing OpenSpec artifacts or missing CRG Evidence.
-4. Fix missing evidence only if it can be produced safely from CRG tools.
-5. Re-run scripts.
-6. Continue only after both scripts pass.
+3. Report missing OpenSpec artifacts or missing CRG Evidence sections.
+4. Fix missing evidence only if it can be produced safely from existing CRG tool outputs or existing OpenSpec context.
+5. Re-run both scripts.
+6. Continue only after both pass.
 
-## Development phase
+## Delta Check Protocol
 
-Use `superpowers:subagent-driven-development`.
+Before each phase, compute context continuity and decide whether to run CRG pre-checks:
 
-### Strict rules
+### Session and tree hash setup
 
-1. Only execute tasks from:
+```bash
+# Session ID: reuse if already exported in this session, otherwise generate
+session_id="${AIWK_SESSION_ID:-$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "$RANDOM$RANDOM$RANDOM")}"
+export AIWK_SESSION_ID="$session_id"
 
+# Tree hash: fingerprint of committed + staged files
+tree_hash=$(git ls-files --stage 2>/dev/null | sha256sum | cut -c1-16)
+[ -z "$tree_hash" ] && tree_hash="no-git"
+```
+
+### Continuity decision table
+
+Read `.ai-workflow-kit/state/<change-id>.json`. Get `last = state.phases.dev.phaseHistory[-1]`.
+
+| Condition | Classification | Action |
+|---|---|---|
+| state missing OR phaseHistory empty | resumed | run `detect_changes` |
+| `last.sessionId` != `$AIWK_SESSION_ID` | resumed | run `detect_changes` |
+| `last.treeHash` != `current_tree_hash` | tree changed | run `detect_changes` |
+| all match | continuous | skip broad CRG pre-check; read target files directly |
+
+### On "resumed" or "tree changed"
+
+1. Run `detect_changes`.
+2. If changed files intersect the current phase's `expected_files`, run `get_impact_radius`.
+3. Read the changed code.
+4. Decide whether the Precision Plan must be updated before continuing.
+5. If plan update is required: STOP and ask user to re-run `/spcrg-plan $ARGUMENTS`.
+
+### On "continuous"
+
+Read the current task's target files directly from `tasks.md#CRG Precision Plan`. Start TDD immediately.
+
+## Execute phase via TDD
+
+Use `superpowers:subagent-driven-development` for parallel or sequential task execution, combined with `superpowers:test-driven-development` for each task.
+
+Only execute tasks from:
+
+```
 openspec/changes/$ARGUMENTS/tasks.md
+```
 
-2. Every task must follow superpowers:test-driven-development:
+For each task:
 
-- write failing test
-- confirm red
-- implement minimal code
-- confirm green
-- refactor
+1. **Red** — write a failing test that captures the required change.
+2. **Green** — implement the minimal code to make the test pass.
+3. **Refactor** — improve without breaking; confirm tests still pass.
+4. Update the task's status in `tasks.md`.
 
-3. Before every phase, run CRG Pre-Phase Check.
+Do not expand scope beyond the tasks in `tasks.md`. Do not edit files not listed in the phase's `expected_files`.
 
-Required CRG tools before phase:
+## CRG Post-Phase Verification
 
-- query_graph_tool for callers/callees/imports/tests_for
-- semantic_search_nodes_tool
-- get_impact_radius_tool
+After each phase N completes, run the following CRG tools:
 
-If the phase touches a user/business flow, also use:
+1. `detect_changes` — list all files changed in this phase
+2. `get_impact_radius` — downstream impact of changed files
+3. `query_graph pattern="tests_for"` for each changed symbol
+4. `get_affected_flows` — flows touched by the changes
+5. `get_knowledge_gaps` — if `config.gates.requireReviewBeforeArchive` is true
 
-- list_flows_tool
-- get_flow_tool
+Compute:
 
-If the phase touches complex code, also use:
+- `actual_changed_files` from `detect_changes` output
+- `scope_drift_percent` = `(|actual - expected| / expected) * 100`
+- `changed_symbol_test_coverage` = `(tested_changed_symbols / changed_symbols) * 100`
+- `affected_flows` from `get_affected_flows`
+- `knowledge_gaps` from `get_knowledge_gaps`
 
-- traverse_graph_tool
-- find_large_functions_tool
+Write `### CRG Post-Phase Verification: Phase N` into `tasks.md` per the V5 schema:
 
-4. After every phase, run CRG Post-Phase Check.
+```
+### CRG Post-Phase Verification: Phase <N>
 
-Required CRG tools after phase:
+- generated_at: <ISO 8601 UTC>
+- actual_changed_files: [...]
+- expected_changed_files: [...]
+- scope_drift_percent: <0-100 integer>
+- changed_symbols: [...]
+- tested_changed_symbols: [...]
+- changed_symbol_test_coverage: <0-100 integer>
+- affected_flows: [...]
+- e2e_required: yes | no
+- e2e_status: existing-coverage | planned | missing
+- knowledge_gaps: [{severity: critical|medium, description: ...}, ...]
+- surprising_connections: [...]
+- verdict: PASS | BLOCKING | NEEDS_HUMAN_DECISION
+- action_taken: <text>
+```
 
-- detect_changes_tool
-- get_impact_radius_tool
-- get_affected_flows_tool
-- query_graph_tool pattern="tests_for"
+### Verdict rules
 
-If unexpected impact appears, also use:
+| Condition | Verdict |
+|---|---|
+| `scope_drift_percent` > `config.thresholds.scopeDriftPercent` AND no explanation | BLOCKING |
+| `changed_symbol_test_coverage` < `config.thresholds.changedSymbolTestCoveragePercent` | BLOCKING |
+| any `knowledge_gaps` entry with `severity: critical` | BLOCKING |
+| `affected_flows` need E2E but E2E is missing and team cannot provide | NEEDS_HUMAN_DECISION |
+| otherwise | PASS |
 
-- get_review_context_tool
-- get_surprising_connections_tool
-- get_knowledge_gaps_tool
+### Numeric consistency enforcement
 
-> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+These contradictions are always invalid:
 
-5. Update tasks.md after each task/phase.
+- `scope_drift_percent` > threshold AND `verdict: PASS`
+- `changed_symbol_test_coverage` < threshold AND `verdict: PASS`
+- `knowledge_gaps` contains `critical` AND `verdict: PASS`
 
-6. Stop immediately if:
+### State update
 
-- unexpected blast radius appears
-- spec mismatch appears
-- CRG unavailable
-- test strategy missing
-- subagent needs to exceed scope
+After writing Post-Phase Verification, update `.ai-workflow-kit/state/<change-id>.json`:
+
+```json
+{
+  "phases": {
+    "dev": {
+      "status": "in_progress",
+      "currentPhase": <N>,
+      "phaseHistory": [
+        {
+          "phaseNumber": <N>,
+          "completedAt": "<ISO 8601 UTC>",
+          "sessionId": "<AIWK_SESSION_ID>",
+          "treeHash": "<current_tree_hash>",
+          "verdict": "PASS | BLOCKING | NEEDS_HUMAN_DECISION",
+          "scopeDriftPercent": <integer>,
+          "changedSymbolCoveragePercent": <integer>
+        }
+      ]
+    }
+  }
+}
+```
+
+## STOP conditions
+
+- `verdict == BLOCKING` → STOP immediately. Report the specific failing metric. Do not continue to the next phase.
+- `verdict == NEEDS_HUMAN_DECISION` → STOP. Explain what human input is needed. Wait for user response before continuing.
+- Plan-external files changed without explanation → STOP. Report which files were not in `expected_files`. Do not continue.
+- CRG unavailable → STOP. Do not fabricate Post-Phase Verification evidence.
+- Unexpected blast radius appears → STOP. Report the unexpected impact before proceeding.
 AIWK_EOF
 
 cat > .claude/commands/spcrg-review.md <<'AIWK_EOF'
-# Spcrg Review
+# Spcrg Review (V5)
 
 Change ID:
 
@@ -346,57 +604,149 @@ Do not proceed until a concrete change-id is chosen.
 
 ## Gate: before review
 
-Before final review, run:
+Before review, run:
 
 ```
 scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
 ```
 
-If either command fails:
+Note: `check-v5-review.sh` is **NOT** in the entry gate — the `## CRG Quantified Review` section is
+this command's **output**, not a precondition. Running `check-v5-review.sh` at entry would always fail.
+
+If either gate script fails:
 
 1. Do not perform final review yet.
-2. Report missing artifacts/evidence.
+2. Report missing artifacts or evidence sections.
 3. Ask whether to repair evidence or return to the previous phase.
 4. Continue only after both scripts pass.
 
-## Review phases
+## Phase 1: OpenSpec Compliance Review
 
-Run final review for this OpenSpec change.
+Review the OpenSpec documents for this change:
 
-### Phase 1: OpenSpec Compliance Review
+- `openspec/changes/$ARGUMENTS/proposal.md`
+- `openspec/changes/$ARGUMENTS/design.md`
+- `openspec/changes/$ARGUMENTS/specs/**`
+- `openspec/changes/$ARGUMENTS/tasks.md`
 
 Check:
 
-- proposal.md
-- design.md
-- specs/**
-- tasks.md
-- GIVEN/WHEN/THEN scenarios
-- scope / out of scope
-- success criteria
+- GIVEN/WHEN/THEN scenarios are present and unambiguous
+- Scope and out-of-scope are clearly stated
+- Success criteria are measurable
+- All planned tasks are represented
 
-### Phase 2: CRG Final Impact Review
+Report any compliance gaps before proceeding to Phase 2.
 
-Required CRG tools:
+## Phase 2: CRG Quantified Review
 
-- detect_changes_tool
-- get_review_context_tool
-- get_impact_radius_tool
-- get_affected_flows_tool
-- query_graph_tool pattern="tests_for"
-- get_knowledge_gaps_tool
+Aggregate all Post-Phase Verifications from `tasks.md` into a single quantified summary.
 
-If architecture-sensitive, also use:
+### Step 1: Collect phase data
 
-- get_surprising_connections_tool
-- get_hub_nodes_tool
-- get_bridge_nodes_tool
-- get_suggested_questions_tool
+For each `### CRG Post-Phase Verification: Phase N` section in `tasks.md`, read:
 
-> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+- `actual_changed_files` list and count
+- `expected_changed_files` list and count (from the Precision Plan for that phase)
+- `changed_symbol_test_coverage`
+- `affected_flows`, `e2e_required`, `e2e_status`
+- `knowledge_gaps` (severity: critical or medium)
 
-### Phase 3: Superpowers Review
+### Step 2: Compute aggregate metrics
+
+**Scope Drift:**
+- `planned_files` = sum of all `expected_changed_files` counts across phases
+- `actual_files` = sum of all `actual_changed_files` counts across phases
+- `drift_percent` = abs(actual_files - planned_files) / planned_files × 100 (integer)
+- Read threshold from `.ai-workflow-kit/config.json` key `thresholds.scopeDriftPercent` (default: 20)
+
+**Changed Function Test Coverage:**
+- `changed_symbols` = union of all `changed_symbols` across phases
+- `tested_symbols` = union of all `tested_changed_symbols` across phases
+- `coverage_percent` = tested_symbols / changed_symbols × 100 (integer)
+- Read threshold from config `thresholds.changedSymbolTestCoveragePercent` (default: 80)
+
+**Flow Impact:**
+- `affected_flows` = union of all per-phase `affected_flows`
+- `flows_with_e2e` = flows where `e2e_status` is `existing-coverage`
+- `flows_missing_e2e` = flows where `e2e_required=yes` and `e2e_status=missing`
+
+**Knowledge Gaps:**
+- `critical` = all `knowledge_gaps` entries with `severity=critical` across all phases
+- `medium` = all `knowledge_gaps` entries with `severity=medium` across all phases
+
+### Step 3: Apply verdict rules per subsection
+
+Each subsection verdict must be numerically consistent:
+
+| Condition | Verdict |
+|---|---|
+| `drift_percent > threshold` with no explanation | BLOCKING |
+| `coverage_percent < threshold` | BLOCKING |
+| `flows_missing_e2e` non-empty AND `requireE2EForAffectedFlows=true` | NEEDS_HUMAN_DECISION |
+| `critical` knowledge gaps non-empty | BLOCKING |
+| otherwise | PASS |
+
+Any verdict that is not PASS **requires** a non-empty `explanation` field.
+
+### Step 4: Determine Final CRG Verdict
+
+- `archive_ready: yes` only if ALL subsection verdicts are PASS
+- `archive_ready: no` if any subsection verdict is BLOCKING or NEEDS_HUMAN_DECISION
+- `blockers`: list all BLOCKING items
+- `human_decisions_required`: list all NEEDS_HUMAN_DECISION items
+
+### Step 5: Write the section
+
+Append `## CRG Quantified Review` to `openspec/changes/$ARGUMENTS/design.md`
+(or write to `review.md` if design.md is already very long).
+
+Use this exact schema:
+
+```markdown
+## CRG Quantified Review
+
+### Review Metadata
+- generated_at: <ISO 8601 UTC>
+- generated_by: /spcrg-review
+- based_on_phases: [<list of phase numbers>]
+
+### Scope Drift
+- planned_files: <N>
+- actual_files: <M>
+- drift_percent: <0-100>
+- verdict: PASS | BLOCKING | NEEDS_HUMAN_DECISION
+- explanation: <required if not PASS>
+
+### Changed Function Test Coverage
+- changed_symbols: <N>
+- tested_symbols: <M>
+- coverage_percent: <0-100>
+- threshold_percent: <from config>
+- verdict: PASS | BLOCKING | NEEDS_HUMAN_DECISION
+- explanation: <required if not PASS>
+
+### Flow Impact
+- affected_flows: [...]
+- flows_with_e2e: [...]
+- flows_missing_e2e: [...]
+- verdict: PASS | BLOCKING | NEEDS_HUMAN_DECISION
+- explanation: <required if not PASS>
+
+### Knowledge Gaps
+- critical: [...]
+- medium: [...]
+- verdict: PASS | BLOCKING | NEEDS_HUMAN_DECISION
+- explanation: <required if not PASS>
+
+### Final CRG Verdict
+- archive_ready: yes | no
+- blockers: [...]
+- human_decisions_required: [...]
+```
+
+## Phase 3: Superpowers Code Review
 
 Use:
 
@@ -404,27 +754,46 @@ superpowers:requesting-code-review
 
 Check:
 
-- TDD compliance
-- minimal implementation
-- YAGNI
-- DRY
-- complexity
-- unverified claims
-- test evidence
+- TDD compliance (every changed symbol has a corresponding test)
+- Minimal implementation (no speculative features)
+- YAGNI (no code that is not yet needed)
+- DRY (no copy-pasted logic that should be extracted)
+- Complexity (functions should be small and focused)
+- Unverified claims (assertions backed by tests, not just prose)
+- Test evidence (tests actually run and pass)
+
+## Self-check
+
+After writing `## CRG Quantified Review`, run:
+
+```
+scripts/check-v5-review.sh $ARGUMENTS
+```
+
+If the script fails:
+
+1. Read the failure messages carefully.
+2. Repair the written `## CRG Quantified Review` section (fix numeric inconsistencies, missing fields, etc.).
+3. Re-run `scripts/check-v5-review.sh $ARGUMENTS` until it passes.
+4. Only then produce the output report below.
+
+Do not report `archive_ready` to the user until `check-v5-review.sh` passes.
 
 ## Output
 
-- blocking issues
-- non-blocking issues
-- missing tests
-- CRG risk summary
-- archive readiness recommendation
+Report:
 
-Do not archive.
+- **Blocking issues**: items that must be fixed before archive (from Phase 1 compliance and Phase 2 BLOCKING verdicts)
+- **Non-blocking issues**: recommended improvements that do not block archive
+- **Missing tests**: symbols that lack test coverage
+- **CRG risk summary**: scope_drift percent, coverage percent, affected flows, critical knowledge gaps
+- **archive_ready verdict**: `yes` or `no` with rationale
+
+Do not archive. Do not run `/opsx:verify`. Do not run `/opsx:archive`.
 AIWK_EOF
 
 cat > .claude/commands/spcrg-archive.md <<'AIWK_EOF'
-# Spcrg Archive
+# Spcrg Archive (V5)
 
 Change ID:
 
@@ -448,24 +817,41 @@ Before verification or archive, run:
 ```
 scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
+scripts/check-v5-review.sh $ARGUMENTS
 ```
 
-If either command fails:
+If any command fails:
 
 1. Do not run `/opsx:verify`.
 2. Do not run `/opsx:archive`.
-3. Report missing artifacts/evidence.
-4. Continue only after both scripts pass.
+3. Report missing artifacts or evidence sections.
+4. For `check-v5-review.sh` failures: the `## CRG Quantified Review` section must exist and pass before archive can proceed. Run `/spcrg-review $ARGUMENTS` first.
+5. Continue only after all three scripts pass.
 
-After both scripts pass:
+## V5 Archive Readiness Check
 
-1. Run `superpowers:verification-before-completion`.
-2. Run CRG Archive Gate (see below).
-3. Re-run both gate scripts one more time right before `/opsx:verify`.
-4. Run `/opsx:verify $ARGUMENTS`.
-5. Only if verification passes, run `/opsx:archive $ARGUMENTS`.
+After all gate scripts pass, read `## CRG Quantified Review` from
+`openspec/changes/$ARGUMENTS/design.md` (or `review.md`).
+
+Assert:
+```
+Final CRG Verdict.archive_ready: yes
+```
+
+If `archive_ready` is `no` or the section is missing:
+
+1. **STOP**.
+2. Report: "Archive blocked: archive_ready is not 'yes'. Run /spcrg-review to produce or update the Quantified Review, address all blockers, and re-run /spcrg-archive."
+3. Do not proceed with project checks, `/opsx:verify`, or `/opsx:archive`.
+
+Only continue when `archive_ready: yes` is confirmed.
 
 ## Run project checks
+
+After gate scripts pass and `archive_ready: yes` is confirmed:
+
+1. Run `superpowers:verification-before-completion`.
+2. Then run all project quality checks:
 
 - unit tests
 - integration tests
@@ -473,6 +859,8 @@ After both scripts pass:
 - lint
 - typecheck
 - build
+
+All checks must pass before proceeding.
 
 ## CRG Archive Gate
 
@@ -490,6 +878,38 @@ If user flow is affected, also use:
 - get_flow_tool
 
 > Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+
+## Pre-archive gate re-run
+
+Re-run all three gate scripts one final time right before `/opsx:verify`:
+
+```
+scripts/check-openspec-gate.sh $ARGUMENTS
+scripts/check-crg-evidence.sh $ARGUMENTS
+scripts/check-v5-review.sh $ARGUMENTS
+```
+
+All must pass. If any fail, stop and repair before proceeding.
+
+## Verify and archive
+
+1. Run `/opsx:verify $ARGUMENTS`.
+2. Only if verification passes, run `/opsx:archive $ARGUMENTS`.
+
+## State write
+
+After successful archive, update `.ai-workflow-kit/state/$ARGUMENTS.json`:
+
+```json
+{
+  "phases": {
+    "archive": {
+      "status": "completed",
+      "completedAt": "<ISO 8601 UTC>"
+    }
+  }
+}
+```
 
 ## Report
 
@@ -558,6 +978,12 @@ If root cause is unclear, also use:
 If expected behavior changes, stop and upgrade to:
 
 /opsx:propose fix-{bug-name}
+
+## V5 Rule: Read Before Decide
+
+Before writing a diagnosis or decision, read the actual source files for
+the relevant CRG hits. Use CRG to locate; use source reading to decide.
+Do not write raw CRG output as evidence. Write decision evidence.
 AIWK_EOF
 
 cat > .claude/commands/spcrg-hotfix.md <<'AIWK_EOF'
@@ -630,6 +1056,20 @@ If production user flow is affected:
 Run critical tests and E2E if relevant.
 
 Stop if blast radius exceeds hotfix scope.
+
+## V5 Rule: Read Before Decide
+
+Before writing a diagnosis or decision, read the actual source files for
+the relevant CRG hits. Use CRG to locate; use source reading to decide.
+Do not write raw CRG output as evidence. Write decision evidence.
+
+## V5 Gate on Archive
+
+If a hotfix OpenSpec record exists (`openspec/changes/hotfix-{issue-id}/`),
+running `/opsx:verify` or `/opsx:archive` requires all V5 gates:
+- scripts/check-openspec-gate.sh hotfix-{issue-id}
+- scripts/check-crg-evidence.sh hotfix-{issue-id}
+- scripts/check-v5-review.sh hotfix-{issue-id}
 AIWK_EOF
 
 cat > .claude/commands/spcrg-refactor.md <<'AIWK_EOF'
@@ -679,10 +1119,16 @@ Use superpowers:brainstorming to clarify:
 If external behavior, public API, or architecture rules change, stop and upgrade to:
 
 /opsx:propose {refactor-change-name}
+
+## V5 Rule: Read Before Decide
+
+Before writing a diagnosis or decision, read the actual source files for
+the relevant CRG hits. Use CRG to locate; use source reading to decide.
+Do not write raw CRG output as evidence. Write decision evidence.
 AIWK_EOF
 
 cat > .claude/commands/spcrg-audit.md <<'AIWK_EOF'
-# Spcrg CRG Evidence Audit
+# Spcrg CRG Evidence Audit (V5)
 
 Change ID:
 
@@ -699,74 +1145,85 @@ If `$ARGUMENTS` is empty:
 
 Do not proceed until a concrete change-id is chosen.
 
-## Gate: at start of audit
+## Run structured checks (report-only)
 
-Run:
+Run all three gate scripts and capture their output. Audit is **report-only**:
+do NOT auto-repair evidence unless the user explicitly asks.
 
 ```
 scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
+scripts/check-v5-review.sh $ARGUMENTS
 ```
 
-Audit behavior is **report-only**:
+Notes on `check-v5-review.sh`:
+- If the `## CRG Quantified Review` section has not yet been produced (review phase not run),
+  the script will fail. Record this as "Review phase not yet run" in the report — it is expected
+  before `/spcrg-review` has been executed.
+- Do not stop the audit because `check-v5-review.sh` fails; continue and include the result in
+  the report table.
 
-1. If either script fails, include the failure in the audit report.
-2. Do not auto-repair evidence unless the user explicitly asks.
-3. Continue the remainder of the audit even if scripts fail, so the full gap list is produced in one pass.
+Capture all CHECK lines and SUMMARY lines from each script. These are the structured evidence
+validation results.
 
-## Audit scope
+## Manual structural audit (semantic checks)
 
-Check these files:
+Perform semantic checks that the scripts cannot do automatically. Read the actual files under
+`openspec/changes/$ARGUMENTS/`:
 
-- openspec/changes/$ARGUMENTS/proposal.md
-- openspec/changes/$ARGUMENTS/design.md
-- openspec/changes/$ARGUMENTS/tasks.md
-- openspec/changes/$ARGUMENTS/specs/**
+### Existing Patterns references
 
-### Required evidence
+In `design.md` under `## CRG Discovery`, find the `### Existing Patterns` subsection.
+For each entry of the form `<pattern name> — reference <file:function>`, verify that
+`<file>` actually exists in the project. Record any references to non-existent files as
+structural issues.
 
-1. proposal.md has CRG Architecture Context.
-2. design.md has CRG Impact Analysis.
-3. tasks.md has CRG Planning Evidence.
-4. Each implementation phase has CRG Pre-Phase Check.
-5. Each implementation phase has CRG Post-Phase Check.
-6. Final review includes CRG Final Impact Review.
-7. Archive/verify includes CRG Archive Gate.
+### Precision Plan Reference Pattern column
 
-### Required tool names must appear where applicable
+In `tasks.md` under `## CRG Precision Plan`, find the `### Function-Level Change Map` table.
+The `Reference Pattern` column lists `<file:symbol>` values. For each entry, verify that
+`<file>` exists in the project. Record missing files.
 
-Baseline:
+### Post-Phase Verifications completeness
 
-- get_minimal_context_tool
-- semantic_search_nodes_tool
-- query_graph_tool
-- get_impact_radius_tool
-- detect_changes_tool
-- get_review_context_tool
-- get_affected_flows_tool
-- get_knowledge_gaps_tool
+Read `.ai-workflow-kit/state/$ARGUMENTS.json` (if it exists) to determine which phases are
+listed as completed. For each completed phase N, verify that a
+`### CRG Post-Phase Verification: Phase N` section exists in `tasks.md`.
+Record any phases that are marked completed but lack a Post-Phase Verification section.
 
-For complex changes also check:
+### Code Reading Summary coverage
 
-- get_architecture_overview_tool
-- list_communities_tool
-- get_community_tool
-- get_hub_nodes_tool
-- get_bridge_nodes_tool
-- get_surprising_connections_tool
-- get_suggested_questions_tool
+In the Code Reading Summary table within `## CRG Discovery`, check that:
+- No `File`, `Symbol`, `Why Read`, `Finding`, or `Decision` column is empty in any row
+- The `Decision` values use the allowed vocabulary: `modify | add | reuse | reuse-pattern | avoid | read-only`
 
-> Tool names may appear with or without the `_tool` suffix in Claude Code. Accept either form during audit, but note which form was recorded.
+This is the structured evidence that distinguishes V5 from V1: the Code Reading Summary
+documents what was actually read and the decisions derived from reading — not raw tool output.
 
 ## Report
 
-- missing evidence
-- missing tools
-- stale evidence
-- gate script results
-- whether next phase is allowed
+Produce a table showing the validation status of each evidence section:
 
-If evidence is missing, do not continue to the next phase. Fix evidence first.
+| Section | Exists | Schema Valid | Notes |
+|---|---|---|---|
+| ## CRG Discovery | ✓/✗ | ✓/✗/— | e.g. "2 rows in Code Reading Summary" |
+| ## CRG Precision Plan | ✓/✗ | ✓/✗/— | e.g. "Phase 2 missing verification_command" |
+| Post-Phase Verification Phase 1 | ✓/✗ | ✓/✗/— | e.g. "verdict=PASS" |
+| Post-Phase Verification Phase 2 | ✓/✗ | ✓/✗/— | e.g. "Not generated" |
+| ## CRG Quantified Review | ✓/✗ | ✓/✗/— | e.g. "Review phase not run" |
+
+Follow the table with:
+
+1. **Blocker list**: items that will block the next phase (gate failures, missing required sections,
+   inconsistent verdicts, Precision Plan targets referencing non-existent files).
+2. **Non-blocking issues**: items that are warnings but do not stop forward progress.
+3. **Next-phase readiness**:
+   - If `/spcrg-review` has not been run: state that `## CRG Quantified Review` and
+     `archive_ready` are not yet available.
+   - If archive_ready is visible: state whether it is `yes` or `no`.
+
+If blockers exist, the audit report makes them visible. The audit does not auto-fix evidence.
+The user must decide whether to repair or accept the risk.
 AIWK_EOF
 
 cat > .claude/skills/project-development-workflow/SKILL.md <<'AIWK_EOF'
@@ -779,6 +1236,17 @@ description: Use for all feature work, bugfixes, hotfixes, refactors, OpenSpec O
 
 Use OpenSpec OPSX, Superpowers, and CRG together.
 
+## V5 Core Principle
+
+CRG tells where; read code decides what; CRG verifies after.
+
+- CRG is a navigator + verifier, not an evidence collector.
+- Every CRG hit MUST be paired with actual source reading before deciding.
+- Evidence is structured decisions, not raw tool output.
+- Later phases inherit earlier phases' evidence; do NOT re-search from scratch.
+- Dev Pre-Phase uses Delta Check, not ritualistic re-queries.
+- Verdicts are numeric-consistent; scripts enforce the shape, the agent enforces the thinking.
+
 ## Responsibilities
 
 - OpenSpec defines intended behavior.
@@ -789,24 +1257,49 @@ Use OpenSpec OPSX, Superpowers, and CRG together.
 
 1. New features and significant changes start with `/spcrg-start`.
 2. Do not implement until OpenSpec artifacts and CRG Evidence exist.
-3. Use `superpowers:brainstorming` after OpenSpec proposal and CRG Context Pass.
+3. Use `superpowers:brainstorming` after OpenSpec proposal and CRG Discovery Pass.
 4. Use `superpowers:writing-plans` before implementation.
 5. Use `superpowers:subagent-driven-development` for implementation.
 6. Use CRG Pre-Phase and Post-Phase checks around every implementation phase.
-7. Run OpenSpec compliance review, CRG final impact review, and Superpowers review before archive.
+7. Run OpenSpec compliance review, CRG Quantified Review, and Superpowers review before archive.
 8. Run `/opsx:verify` before `/opsx:archive` when available.
+9. Every CRG hit requires actual source reading before any decision is made.
+10. Evidence must use structured schemas — do not record raw tool output as evidence.
+11. Later phases inherit earlier phases' evidence; do not re-run Discovery searches from scratch.
+12. Dev Pre-Phase runs Delta Check; skip re-queries if the change is continuous from the prior phase.
+
+## Session & State
+
+Each change has a state file at `.ai-workflow-kit/state/<change-id>.json`.
+
+When `/spcrg-*` commands start:
+1. Generate or reuse `$AIWK_SESSION_ID` (uuidgen fallback).
+2. Compute current tree hash: `git ls-files --stage | sha256sum | cut -c1-16`.
+3. Read state to determine phase progression and continuity.
+4. Write state at end of each phase completion.
+
+The state file is gitignored — per-developer runtime data.
+
+## Config
+
+Thresholds and gate behavior live in `.ai-workflow-kit/config.json`.
+Scripts read via jq (preferred) or python3 (fallback).
+If neither available, scripts fall back to hardcoded defaults.
+Do not hardcode thresholds in command prose — reference config field names.
 
 ## Command Map
 
-- `/spcrg-start <description>` — propose + CRG Context Pass + brainstorming (gate runs at the **end**, before asking for approval)
-- `/spcrg-plan <change-id>` — rewrite tasks.md with TDD + CRG checks (gate runs **first**)
-- `/spcrg-dev <change-id>` — subagent-driven TDD execution with CRG pre/post checks (gate runs **first**)
-- `/spcrg-review <change-id>` — OpenSpec + CRG + Superpowers review (gate runs **first**)
-- `/spcrg-archive <change-id>` — verification + CRG Archive Gate + /opsx:verify + /opsx:archive (gate runs **first**, and re-checks right before `/opsx:verify`)
-- `/spcrg-bugfix <bug>` — lightweight systematic debugging + CRG diagnosis. No OpenSpec gate for plain bugfixes; upgrade to `/opsx:propose fix-...` if behavior changes, then feature-style gates apply.
-- `/spcrg-hotfix <incident>` — minimal production fix + CRG fast diagnosis. If a hotfix OpenSpec record is created, gates apply before archive / release-readiness.
-- `/spcrg-refactor <goal>` — CRG refactor assessment + Superpowers brainstorming
-- `/spcrg-audit <change-id>` — CRG evidence completeness audit (gate runs but is **report-only**)
+| Command | V5 Protocol | Produces Evidence | Gate Scripts |
+|---|---|---|---|
+| `/spcrg-start <description>` | Discovery Protocol: CRG navigate → agent Read → agent Decide → structured Decision Evidence | `openspec/changes/<id>/design.md#CRG Discovery Evidence` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (run after propose + CRG + brainstorm + write-back, before approval) |
+| `/spcrg-plan <change-id>` | Precision Mapping: inherit Discovery + CRG Precision Pass → function-level TDD tasks | `openspec/changes/<id>/tasks.md#CRG Precision Mapping` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
+| `/spcrg-dev <change-id>` | Delta Check (continuous vs resumed) + TDD red/green/refactor + CRG Post-Phase Verification per phase | `tasks.md#CRG Post-Phase Verification: Phase N` per phase | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
+| `/spcrg-review <change-id>` | OpenSpec compliance + CRG Quantified Review (aggregate all phases) + Superpowers code review | `design.md#CRG Quantified Review` with `archive_ready` verdict | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step; `check-v5-review.sh` is this command's OUTPUT, not entry gate) |
+| `/spcrg-archive <change-id>` | Assert `archive_ready == yes` + verification + CRG Archive Gate + `/opsx:verify` + `/opsx:archive` + state update | state `phase=archive` | `check-openspec-gate.sh`, `check-crg-evidence.sh`, `check-v5-review.sh` (first step and again before `/opsx:verify`) |
+| `/spcrg-bugfix <bug>` | Read Before Decide on diagnosis; CRG fast diagnosis; no OpenSpec gate for plain bugfix | diagnosis notes (informal) | none required for plain bugfix; if upgraded to OpenSpec change, feature gates apply |
+| `/spcrg-hotfix <incident>` | Read Before Decide; CRG fast diagnosis; minimal production fix | hotfix notes (informal) | `check-openspec-gate.sh`, `check-crg-evidence.sh` before archive/release sign-off only if a hotfix OpenSpec record exists |
+| `/spcrg-refactor <goal>` | Read Before Decide; CRG refactor assessment + Superpowers brainstorming | refactor scope assessment | none required unless OpenSpec record created |
+| `/spcrg-audit <change-id>` | Structured evidence completeness audit across all phases | audit report | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step; report-only, no auto-repair unless requested) |
 
 ## Gate Script Matrix
 
@@ -816,7 +1309,7 @@ Use OpenSpec OPSX, Superpowers, and CRG together.
 | `/spcrg-plan` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `superpowers:writing-plans` |
 | `/spcrg-dev` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `superpowers:subagent-driven-development` |
 | `/spcrg-review` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not enter final review |
-| `/spcrg-archive` | first step, and re-check right before `/opsx:verify` | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `/opsx:verify` or `/opsx:archive` |
+| `/spcrg-archive` | first step, and re-check right before `/opsx:verify` | `check-openspec-gate.sh`, `check-crg-evidence.sh`, `check-v5-review.sh` | do not run `/opsx:verify` or `/opsx:archive` |
 | `/spcrg-audit` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | report only; no auto-repair unless requested |
 | `/spcrg-bugfix` | not required for plain bugfix | n/a | if upgraded to OpenSpec change, gates apply |
 | `/spcrg-hotfix` | before archive/release sign-off, only if OpenSpec hotfix record exists | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not mark ready to ship |
@@ -845,12 +1338,23 @@ Stop and report if:
 - Required tests cannot be found or run.
 - E2E is required but unavailable.
 - A subagent needs to exceed OpenSpec scope.
-- A gate script keeps failing after a repair attempt.
+- A gate script keeps failing after repair.
+- Gate script keeps failing after repair attempt.
 AIWK_EOF
 
 cat > scripts/check-crg-evidence.sh <<'AIWK_EOF'
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
+
+# =============================================================================
+# check-crg-evidence.sh — V5 structured CRG schema validation
+#
+# Usage: check-crg-evidence.sh <change-id>
+#
+# Modes (AIWK_CHECK_CRG_MODE):
+#   strict      (default) — validates Discovery + Precision Plan + Post-Phase
+#   shape-only             — validates Discovery only (used by /spcrg-start gate)
+# =============================================================================
 
 change_id="${1:-}"
 
@@ -859,6 +1363,7 @@ if [ -z "$change_id" ]; then
   exit 1
 fi
 
+MODE="${AIWK_CHECK_CRG_MODE:-strict}"
 base="openspec/changes/$change_id"
 
 if [ ! -d "$base" ]; then
@@ -866,39 +1371,648 @@ if [ ! -d "$base" ]; then
   exit 1
 fi
 
-required_files=(
-  "$base/proposal.md"
-  "$base/design.md"
-  "$base/tasks.md"
-)
+design_file="$base/design.md"
+tasks_file="$base/tasks.md"
 
-for file in "${required_files[@]}"; do
+# =============================================================================
+# Config reader
+# =============================================================================
+_read_config() {
+  local key="$1" default="$2" config=".ai-workflow-kit/config.json"
+  if [ ! -f "$config" ]; then echo "$default"; return; fi
+  if command -v jq &>/dev/null; then
+    local val
+    val=$(jq -r "$key // empty" "$config" 2>/dev/null)
+    [ -n "$val" ] && echo "$val" || echo "$default"
+  elif command -v python3 &>/dev/null; then
+    local val
+    val=$(python3 -c "
+import json
+try:
+  c=json.load(open('$config'))
+  keys='$key'.lstrip('.').split('.')
+  v=c
+  for k in keys: v=v[k]
+  print(v)
+except:
+  pass
+" 2>/dev/null)
+    [ -n "$val" ] && echo "$val" || echo "$default"
+  else
+    echo "$default"
+  fi
+}
+
+# Load thresholds
+DISCOVERY_MIN_READINGS=$(_read_config ".thresholds.discoveryMinReadings" "2")
+PRECISION_PLAN_MIN_TASKS=$(_read_config ".thresholds.precisionPlanMinTasks" "1")
+SCOPE_DRIFT_THRESHOLD=$(_read_config ".thresholds.scopeDriftPercent" "20")
+COVERAGE_THRESHOLD=$(_read_config ".thresholds.changedSymbolTestCoveragePercent" "80")
+
+# =============================================================================
+# Check tracking
+# =============================================================================
+PASS_COUNT=0
+FAIL_COUNT=0
+
+_pass() {
+  local desc="$1"
+  printf "CHECK: %-65s PASS\n" "$desc"
+  PASS_COUNT=$((PASS_COUNT + 1))
+}
+
+_fail() {
+  local desc="$1" reason="$2"
+  printf "CHECK: %-65s FAIL (%s)\n" "$desc" "$reason"
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+}
+
+# =============================================================================
+# Markdown helpers
+# =============================================================================
+
+# Extract the raw content of a level-2 section (## Heading) from a file.
+# Returns all lines between the heading and the next ## (or EOF).
+_extract_h2_section() {
+  local file="$1" heading="$2"
+  awk -v h="## $heading" '
+    found && /^## / { exit }
+    found { print }
+    $0 == h { found=1 }
+  ' "$file"
+}
+
+# Check whether a ## heading exists in a file
+_has_h2() {
+  local file="$1" heading="$2"
+  grep -q "^## $heading" "$file" 2>/dev/null
+}
+
+# Check whether a ### sub-heading exists within a block of text (stdin)
+_has_h3_in_block() {
+  local heading="$1"
+  grep -q "^### $heading"
+}
+
+# Count non-header, non-separator table rows in stdin
+# Table rows look like: | col1 | col2 | ...
+# Header separator rows look like: |---|---|...  or  |:---|:---|...
+_count_table_rows() {
+  grep -c "^|" | tr -d ' ' || echo 0
+  # We'll do it properly below
+}
+
+# Count data rows in a markdown table (excludes header and separator lines)
+_count_data_rows() {
+  awk '/^\|/ && !/^\|[-: |]+\|/' | grep -c "^|" || echo 0
+}
+
+# =============================================================================
+# VALIDATION: design.md — ## CRG Discovery
+# =============================================================================
+
+validate_discovery() {
+  local file="$design_file"
+
+  # 1. File exists
   if [ ! -f "$file" ]; then
-    echo "Missing file: $file"
-    exit 1
+    _fail "design.md exists" "file not found: $file"
+    return
   fi
 
-  if ! grep -qi "CRG" "$file"; then
-    echo "Missing CRG evidence in $file"
-    exit 1
+  # 2. ## CRG Discovery section exists
+  if ! _has_h2 "$file" "CRG Discovery"; then
+    _fail "design.md has ## CRG Discovery section" "section not found"
+    return
   fi
-done
+  _pass "design.md has ## CRG Discovery section"
 
-required_tools=(
-  "get_minimal_context"
-  "semantic_search_nodes"
-  "query_graph"
-  "get_impact_radius"
-)
+  # Extract the discovery section content
+  local disc_content
+  disc_content=$(_extract_h2_section "$file" "CRG Discovery")
 
-for tool in "${required_tools[@]}"; do
-  if ! grep -R -q "$tool" "$base"; then
-    echo "Missing required CRG tool evidence: $tool"
-    exit 1
+  # 3. Required subsections (7 + Open Questions)
+  local required_subsections=(
+    "Discovery Metadata"
+    "Search Queries"
+    "Code Reading Summary"
+    "Involved Modules"
+    "Entry Points"
+    "Existing Patterns"
+    "Risk Boundary"
+  )
+
+  for sub in "${required_subsections[@]}"; do
+    if echo "$disc_content" | _has_h3_in_block "$sub"; then
+      _pass "CRG Discovery has ### $sub subsection"
+    else
+      _fail "CRG Discovery has ### $sub subsection" "subsection not found"
+    fi
+  done
+
+  # 4. Open Questions subsection
+  if echo "$disc_content" | _has_h3_in_block "Open Questions"; then
+    _pass "CRG Discovery has ### Open Questions subsection"
+  else
+    _fail "CRG Discovery has ### Open Questions subsection" "subsection not found"
   fi
-done
 
-echo "CRG evidence baseline found for $change_id"
+  # 5. Discovery Metadata — 4 required fields non-empty
+  local meta_content
+  meta_content=$(echo "$disc_content" | awk '
+    found && /^### / { exit }
+    found { print }
+    /^### Discovery Metadata/ { found=1 }
+  ')
+
+  local meta_fields=("generated_at" "generated_by" "crg_graph_status" "source_requirement")
+  for field in "${meta_fields[@]}"; do
+    local val
+    val=$(echo "$meta_content" | grep -E "^-?\s*${field}:" | sed 's/.*://' | tr -d ' ')
+    if [ -n "$val" ]; then
+      _pass "Discovery Metadata: $field is non-empty"
+    else
+      _fail "Discovery Metadata: $field is non-empty" "field missing or empty"
+    fi
+  done
+
+  # 6. crg_graph_status valid enum: fresh|rebuilt|stale|unavailable
+  local graph_status
+  graph_status=$(echo "$meta_content" | grep -E "^-?\s*crg_graph_status:" | sed 's/.*://' | tr -d ' ')
+  if echo "$graph_status" | grep -qE "^(fresh|rebuilt|stale|unavailable)$"; then
+    _pass "Discovery Metadata: crg_graph_status valid enum ($graph_status)"
+  else
+    _fail "Discovery Metadata: crg_graph_status valid enum" "got '$graph_status', expected fresh|rebuilt|stale|unavailable"
+  fi
+
+  # 7. Code Reading Summary table row count >= discoveryMinReadings
+  local reading_content
+  reading_content=$(echo "$disc_content" | awk '
+    found && /^### / { exit }
+    found { print }
+    /^### Code Reading Summary/ { found=1 }
+  ')
+
+  local row_count
+  # Count only data rows: exclude separator lines AND the first non-separator row (header)
+  row_count=$(echo "$reading_content" | awk '
+    /^\|/ && !/^\|[-: |]+\|/ {
+      if (!header_seen) { header_seen=1; next }
+      count++
+    }
+    END { print count+0 }
+  ')
+
+  if [ "$row_count" -ge "$DISCOVERY_MIN_READINGS" ]; then
+    _pass "Code Reading Summary has >= $DISCOVERY_MIN_READINGS rows (found $row_count)"
+  else
+    _fail "Code Reading Summary has >= $DISCOVERY_MIN_READINGS rows" "found $row_count"
+  fi
+
+  # 8. All 5 columns non-empty per Code Reading Summary row
+  # Columns: File | Symbol | Why Read | Finding | Decision
+  local row_num=0
+  local reading_header_skipped=false
+  while IFS= read -r row; do
+    # Skip non-table lines
+    echo "$row" | grep -q "^|" || continue
+    # Skip separator lines (e.g. |---|---|)
+    echo "$row" | grep -q "^|[-: |]*|$" && continue
+
+    # Skip the header row (first non-separator table row)
+    if ! $reading_header_skipped; then
+      reading_header_skipped=true
+      continue
+    fi
+
+    row_num=$((row_num + 1))
+
+    # Split row on | and check each column is non-empty
+    # Strip leading/trailing | then split on |
+    local inner
+    inner="${row#|}"
+    inner="${inner%|}"
+
+    local col_num=0
+    local all_filled=true
+    IFS='|' read -ra cols <<< "$inner"
+    for col in "${cols[@]}"; do
+      col_num=$((col_num + 1))
+      local trimmed
+      trimmed=$(echo "$col" | tr -d ' ')
+      if [ -z "$trimmed" ] || [ "$trimmed" = "---" ] || echo "$trimmed" | grep -q "^[-:]*$"; then
+        all_filled=false
+        break
+      fi
+    done
+
+    if $all_filled && [ "$col_num" -ge 5 ]; then
+      _pass "Code Reading Summary row $row_num: all 5 columns non-empty"
+    elif ! $all_filled; then
+      _fail "Code Reading Summary row $row_num: all 5 columns non-empty" "empty column found"
+    else
+      _fail "Code Reading Summary row $row_num: all 5 columns non-empty" "only $col_num columns"
+    fi
+  done <<< "$reading_content"
+
+  # 9. Risk Boundary.expected_changed_files is positive integer
+  local risk_content
+  risk_content=$(echo "$disc_content" | awk '
+    found && /^### / { exit }
+    found { print }
+    /^### Risk Boundary/ { found=1 }
+  ')
+
+  local expected_files
+  expected_files=$(echo "$risk_content" | grep -E "expected_changed_files:" | sed 's/.*://' | tr -d ' ')
+  if echo "$expected_files" | grep -qE "^[1-9][0-9]*$"; then
+    _pass "Risk Boundary: expected_changed_files is positive integer ($expected_files)"
+  else
+    _fail "Risk Boundary: expected_changed_files is positive integer" "got '$expected_files'"
+  fi
+}
+
+# =============================================================================
+# VALIDATION: tasks.md — ## CRG Precision Plan
+# =============================================================================
+
+validate_precision_plan() {
+  local file="$tasks_file"
+
+  if [ ! -f "$file" ]; then
+    _fail "tasks.md exists" "file not found: $file"
+    return
+  fi
+
+  if ! _has_h2 "$file" "CRG Precision Plan"; then
+    _fail "tasks.md has ## CRG Precision Plan section" "section not found"
+    return
+  fi
+  _pass "tasks.md has ## CRG Precision Plan section"
+
+  local plan_content
+  plan_content=$(_extract_h2_section "$file" "CRG Precision Plan")
+
+  # Required subsections
+  local required_subsections=(
+    "Mapping Metadata"
+    "Function-Level Change Map"
+    "Test Coverage Plan"
+    "Phase Plan"
+  )
+
+  for sub in "${required_subsections[@]}"; do
+    if echo "$plan_content" | _has_h3_in_block "$sub"; then
+      _pass "CRG Precision Plan has ### $sub subsection"
+    else
+      _fail "CRG Precision Plan has ### $sub subsection" "subsection not found"
+    fi
+  done
+
+  # Function-Level Change Map row count >= precisionPlanMinTasks
+  local map_content
+  map_content=$(echo "$plan_content" | awk '
+    found && /^### / { exit }
+    found { print }
+    /^### Function-Level Change Map/ { found=1 }
+  ')
+
+  local map_row_count
+  # Count only data rows: exclude separator lines AND the first non-separator row (header)
+  map_row_count=$(echo "$map_content" | awk '
+    /^\|/ && !/^\|[-: |]+\|/ {
+      if (!header_seen) { header_seen=1; next }
+      count++
+    }
+    END { print count+0 }
+  ')
+
+  if [ "$map_row_count" -ge "$PRECISION_PLAN_MIN_TASKS" ]; then
+    _pass "Function-Level Change Map has >= $PRECISION_PLAN_MIN_TASKS rows (found $map_row_count)"
+  else
+    _fail "Function-Level Change Map has >= $PRECISION_PLAN_MIN_TASKS rows" "found $map_row_count"
+  fi
+
+  # All 7 columns non-empty per Change Map row; validate Target and Risk columns
+  # Expected columns: Target | Change Type | Rationale | Depends On | Risk | Test Required | Notes
+  local map_row_num=0
+  local map_header_skipped=false
+  while IFS= read -r row; do
+    echo "$row" | grep -q "^|" || continue
+    echo "$row" | grep -q "^|[-: |]*|$" && continue
+
+    # Skip the header row (first non-separator table row)
+    if ! $map_header_skipped; then
+      map_header_skipped=true
+      continue
+    fi
+
+    map_row_num=$((map_row_num + 1))
+
+    local inner="${row#|}"
+    inner="${inner%|}"
+
+    local col_num=0
+    local all_filled=true
+    local target_col=""
+    local risk_col=""
+
+    IFS='|' read -ra cols <<< "$inner"
+    for col in "${cols[@]}"; do
+      col_num=$((col_num + 1))
+      local trimmed
+      trimmed=$(echo "$col" | tr -d ' ')
+      if [ -z "$trimmed" ] || echo "$trimmed" | grep -q "^[-:]*$"; then
+        all_filled=false
+      fi
+      [ "$col_num" -eq 1 ] && target_col="$trimmed"
+      [ "$col_num" -eq 5 ] && risk_col="$trimmed"
+    done
+
+    if $all_filled && [ "$col_num" -ge 7 ]; then
+      _pass "Change Map row $map_row_num: all 7 columns non-empty"
+    elif ! $all_filled; then
+      _fail "Change Map row $map_row_num: all 7 columns non-empty" "empty column found"
+    else
+      _fail "Change Map row $map_row_num: all 7 columns non-empty" "only $col_num columns"
+    fi
+
+    # Target matches file:symbol pattern (contains colon, no spaces around it)
+    if echo "$target_col" | grep -q "[^ ]:[^ ]"; then
+      _pass "Change Map row $map_row_num: Target matches file:symbol pattern"
+    else
+      _fail "Change Map row $map_row_num: Target matches file:symbol pattern" "got '$target_col'"
+    fi
+
+    # Risk column valid enum: low|medium|high
+    if echo "$risk_col" | grep -qE "^(low|medium|high)$"; then
+      _pass "Change Map row $map_row_num: Risk is valid enum ($risk_col)"
+    else
+      _fail "Change Map row $map_row_num: Risk is valid enum" "got '$risk_col'"
+    fi
+  done <<< "$map_content"
+
+  # At least 1 #### Phase subsection within Phase Plan
+  local phase_plan_content
+  phase_plan_content=$(echo "$plan_content" | awk '
+    found && /^### / { exit }
+    found { print }
+    /^### Phase Plan/ { found=1 }
+  ')
+
+  local phase_count
+  phase_count=$(echo "$phase_plan_content" | grep "^#### Phase" 2>/dev/null | wc -l | tr -d ' ')
+
+  if [ "$phase_count" -ge 1 ]; then
+    _pass "Phase Plan has >= 1 #### Phase subsection (found $phase_count)"
+  else
+    _fail "Phase Plan has >= 1 #### Phase subsection" "found 0"
+  fi
+
+  # Each phase has 5 required fields
+  local required_phase_fields=(
+    "expected_files"
+    "expected_symbols"
+    "required_tests"
+    "verification_command"
+    "crg_post_phase_checks"
+  )
+
+  local phase_idx=0
+  local current_phase_lines=""
+  local in_phase=false
+
+  while IFS= read -r line; do
+    if echo "$line" | grep -q "^#### Phase"; then
+      # Validate previous phase if any
+      if $in_phase && [ "$phase_idx" -gt 0 ]; then
+        _validate_phase_fields "$phase_idx" "$current_phase_lines"
+      fi
+      phase_idx=$((phase_idx + 1))
+      current_phase_lines=""
+      in_phase=true
+      continue
+    fi
+    if $in_phase; then
+      current_phase_lines="${current_phase_lines}
+${line}"
+    fi
+  done <<< "$phase_plan_content"
+
+  # Validate last phase
+  if $in_phase && [ "$phase_idx" -gt 0 ]; then
+    _validate_phase_fields "$phase_idx" "$current_phase_lines"
+  fi
+}
+
+_validate_phase_fields() {
+  local idx="$1" content="$2"
+  local required_phase_fields=(
+    "expected_files"
+    "expected_symbols"
+    "required_tests"
+    "verification_command"
+    "crg_post_phase_checks"
+  )
+
+  for field in "${required_phase_fields[@]}"; do
+    local val
+    val=$(echo "$content" | grep -E "^-?\s*${field}:" | sed 's/.*://' | tr -d ' ')
+    if [ -n "$val" ]; then
+      _pass "Phase $idx: $field is present"
+    else
+      _fail "Phase $idx: $field is present" "field missing or empty"
+    fi
+  done
+}
+
+# =============================================================================
+# VALIDATION: Post-Phase Verifications in tasks.md
+# =============================================================================
+
+validate_post_phase_verifications() {
+  local file="$tasks_file"
+
+  if [ ! -f "$file" ]; then
+    return
+  fi
+
+  # Find all ## CRG Post-Phase Verification sections
+  local ppv_count
+  ppv_count=$(grep "^## CRG Post-Phase Verification" "$file" 2>/dev/null | wc -l | tr -d ' ')
+
+  if [ "$ppv_count" -eq 0 ]; then
+    # No post-phase verifications — that's fine
+    return
+  fi
+
+  local required_fields=(
+    "generated_at"
+    "actual_changed_files"
+    "expected_changed_files"
+    "scope_drift_percent"
+    "changed_symbols"
+    "tested_changed_symbols"
+    "changed_symbol_test_coverage"
+    "affected_flows"
+    "e2e_required"
+    "e2e_status"
+    "knowledge_gaps"
+    "surprising_connections"
+    "verdict"
+    "action_taken"
+  )
+
+  # Process each post-phase verification block
+  local ppv_idx=0
+  local in_ppv=false
+  local ppv_content=""
+
+  while IFS= read -r line; do
+    if echo "$line" | grep -q "^## CRG Post-Phase Verification"; then
+      # Validate previous block if any
+      if $in_ppv && [ "$ppv_idx" -gt 0 ]; then
+        _validate_ppv "$ppv_idx" "$ppv_content"
+      fi
+      ppv_idx=$((ppv_idx + 1))
+      ppv_content=""
+      in_ppv=true
+      continue
+    fi
+    if $in_ppv; then
+      if echo "$line" | grep -q "^## "; then
+        # End of this PPV block
+        _validate_ppv "$ppv_idx" "$ppv_content"
+        in_ppv=false
+        ppv_content=""
+      else
+        ppv_content="${ppv_content}
+${line}"
+      fi
+    fi
+  done < "$file"
+
+  # Validate last block
+  if $in_ppv && [ "$ppv_idx" -gt 0 ]; then
+    _validate_ppv "$ppv_idx" "$ppv_content"
+  fi
+}
+
+_validate_ppv() {
+  local idx="$1" content="$2"
+
+  local required_fields=(
+    "generated_at"
+    "actual_changed_files"
+    "expected_changed_files"
+    "scope_drift_percent"
+    "changed_symbols"
+    "tested_changed_symbols"
+    "changed_symbol_test_coverage"
+    "affected_flows"
+    "e2e_required"
+    "e2e_status"
+    "knowledge_gaps"
+    "surprising_connections"
+    "verdict"
+    "action_taken"
+  )
+
+  for field in "${required_fields[@]}"; do
+    local val
+    val=$(echo "$content" | grep -E "^-?\s*${field}:" | sed 's/.*://' | tr -d ' ')
+    if [ -n "$val" ]; then
+      _pass "Post-Phase Verification $idx: $field is present"
+    else
+      _fail "Post-Phase Verification $idx: $field is present" "field missing or empty"
+    fi
+  done
+
+  # scope_drift_percent and changed_symbol_test_coverage are numeric
+  local drift
+  drift=$(echo "$content" | grep -E "^-?\s*scope_drift_percent:" | sed 's/.*://' | tr -d ' ')
+  if echo "$drift" | grep -qE "^[0-9]+(\.[0-9]+)?$"; then
+    _pass "Post-Phase Verification $idx: scope_drift_percent is numeric ($drift)"
+  else
+    _fail "Post-Phase Verification $idx: scope_drift_percent is numeric" "got '$drift'"
+  fi
+
+  local coverage
+  coverage=$(echo "$content" | grep -E "^-?\s*changed_symbol_test_coverage:" | sed 's/.*://' | tr -d ' ')
+  if echo "$coverage" | grep -qE "^[0-9]+(\.[0-9]+)?$"; then
+    _pass "Post-Phase Verification $idx: changed_symbol_test_coverage is numeric ($coverage)"
+  else
+    _fail "Post-Phase Verification $idx: changed_symbol_test_coverage is numeric" "got '$coverage'"
+  fi
+
+  # verdict valid enum: PASS|BLOCKING|NEEDS_HUMAN_DECISION
+  local verdict
+  verdict=$(echo "$content" | grep -E "^-?\s*verdict:" | sed 's/.*://' | tr -d ' ')
+  if echo "$verdict" | grep -qE "^(PASS|BLOCKING|NEEDS_HUMAN_DECISION)$"; then
+    _pass "Post-Phase Verification $idx: verdict is valid enum ($verdict)"
+  else
+    _fail "Post-Phase Verification $idx: verdict is valid enum" "got '$verdict'"
+  fi
+
+  # Verdict consistency checks
+  # drift > threshold but verdict=PASS → FAIL
+  if echo "$drift" | grep -qE "^[0-9]+(\.[0-9]+)?$" && [ "$verdict" = "PASS" ]; then
+    local drift_int
+    drift_int=$(echo "$drift" | cut -d. -f1)
+    if [ "$drift_int" -gt "$SCOPE_DRIFT_THRESHOLD" ]; then
+      _fail "Post-Phase Verification $idx: verdict consistency (drift)" \
+        "drift ${drift}% > threshold ${SCOPE_DRIFT_THRESHOLD}% but verdict=PASS"
+    else
+      _pass "Post-Phase Verification $idx: verdict consistency (drift)"
+    fi
+  fi
+
+  # coverage < threshold but verdict=PASS → FAIL
+  if echo "$coverage" | grep -qE "^[0-9]+(\.[0-9]+)?$" && [ "$verdict" = "PASS" ]; then
+    local cov_int
+    cov_int=$(echo "$coverage" | cut -d. -f1)
+    if [ "$cov_int" -lt "$COVERAGE_THRESHOLD" ]; then
+      _fail "Post-Phase Verification $idx: verdict consistency (coverage)" \
+        "coverage ${coverage}% < threshold ${COVERAGE_THRESHOLD}% but verdict=PASS"
+    else
+      _pass "Post-Phase Verification $idx: verdict consistency (coverage)"
+    fi
+  fi
+
+  # BLOCKING/NEEDS_HUMAN_DECISION → action_taken must be non-empty
+  if echo "$verdict" | grep -qE "^(BLOCKING|NEEDS_HUMAN_DECISION)$"; then
+    local action
+    action=$(echo "$content" | grep -E "^-?\s*action_taken:" | sed 's/.*://' | tr -d ' ')
+    if [ -n "$action" ]; then
+      _pass "Post-Phase Verification $idx: action_taken non-empty for verdict=$verdict"
+    else
+      _fail "Post-Phase Verification $idx: action_taken non-empty for verdict=$verdict" \
+        "action_taken is empty but verdict requires it"
+    fi
+  fi
+}
+
+# =============================================================================
+# Main execution
+# =============================================================================
+
+validate_discovery
+
+if [ "$MODE" != "shape-only" ]; then
+  validate_precision_plan
+  validate_post_phase_verifications
+fi
+
+# Summary
+total=$((PASS_COUNT + FAIL_COUNT))
+echo ""
+echo "SUMMARY: $total checks, $PASS_COUNT passed, $FAIL_COUNT failed"
+
+if [ "$FAIL_COUNT" -gt 0 ]; then
+  exit 1
+fi
+
+exit 0
 AIWK_EOF
 
 cat > scripts/check-openspec-gate.sh <<'AIWK_EOF'
@@ -978,7 +2092,7 @@ note() { printf "  %s\n" "$*"; }
 ok()   { printf "  \033[32mok\033[0m  %s\n" "$*"; }
 bad()  { printf "  \033[31mfail\033[0m %s\n" "$*"; fail=$((fail+1)); }
 
-echo "[1/4] commands exist"
+echo "[1/5] commands exist"
 required_commands=(
   .claude/commands/spcrg-start.md
   .claude/commands/spcrg-plan.md
@@ -995,11 +2109,13 @@ for f in "${required_commands[@]}"; do
 done
 
 echo ""
-echo "[2/4] gate scripts exist and are executable"
+echo "[2/5] gate scripts exist and are executable"
 required_scripts=(
   scripts/check-crg-evidence.sh
   scripts/check-openspec-gate.sh
   scripts/detect-change-id.sh
+  scripts/check-v5-review.sh
+  scripts/check-command-protocols.sh
 )
 for f in "${required_scripts[@]}"; do
   if [ ! -f "$f" ]; then
@@ -1012,7 +2128,7 @@ for f in "${required_scripts[@]}"; do
 done
 
 echo ""
-echo "[3/4] commands embed gate script calls"
+echo "[3/5] commands embed gate script calls"
 gated_commands=(
   .claude/commands/spcrg-plan.md
   .claude/commands/spcrg-dev.md
@@ -1033,7 +2149,7 @@ for f in "${gated_commands[@]}"; do
 done
 
 echo ""
-echo "[4/4] spcrg-start.md runs gate after artifacts"
+echo "[4/5] spcrg-start.md runs gate after artifacts"
 if [ -f .claude/commands/spcrg-start.md ]; then
   if grep -q "check-openspec-gate.sh" .claude/commands/spcrg-start.md \
      && grep -q "check-crg-evidence.sh" .claude/commands/spcrg-start.md; then
@@ -1041,6 +2157,18 @@ if [ -f .claude/commands/spcrg-start.md ]; then
   else
     bad "spcrg-start.md must embed both gate scripts"
   fi
+fi
+
+echo ""
+echo "[5/5] command files contain V5 protocol keywords"
+if [ -x "$root/scripts/check-command-protocols.sh" ]; then
+  if "$root/scripts/check-command-protocols.sh" "$root/.claude/commands" >/dev/null 2>&1; then
+    ok "V5 protocol keywords present in all commands"
+  else
+    bad "V5 protocol keywords missing (run: scripts/check-command-protocols.sh .claude/commands)"
+  fi
+else
+  bad "scripts/check-command-protocols.sh not found or not executable"
 fi
 
 echo ""
@@ -1053,10 +2181,517 @@ else
 fi
 AIWK_EOF
 
+cat > scripts/check-v5-review.sh <<'AIWK_EOF'
+#!/usr/bin/env bash
+set -uo pipefail
+
+# =============================================================================
+# check-v5-review.sh — V5 CRG Quantified Review validation
+#
+# Usage: check-v5-review.sh <change-id>
+#
+# Validates the ## CRG Quantified Review section in a change's design.md
+# (or review.md).
+# =============================================================================
+
+change_id="${1:-}"
+
+if [ -z "$change_id" ]; then
+  echo "Usage: scripts/check-v5-review.sh <change-id>"
+  exit 1
+fi
+
+base="openspec/changes/$change_id"
+
+if [ ! -d "$base" ]; then
+  echo "OpenSpec change not found: $base"
+  exit 1
+fi
+
+# Locate review file: design.md first, then review.md
+review_file=""
+if [ -f "$base/design.md" ]; then
+  if grep -q "^## CRG Quantified Review" "$base/design.md" 2>/dev/null; then
+    review_file="$base/design.md"
+  fi
+fi
+if [ -z "$review_file" ] && [ -f "$base/review.md" ]; then
+  if grep -q "^## CRG Quantified Review" "$base/review.md" 2>/dev/null; then
+    review_file="$base/review.md"
+  fi
+fi
+# Fallback: pick whichever exists so we can report "section not found"
+if [ -z "$review_file" ]; then
+  if [ -f "$base/design.md" ]; then
+    review_file="$base/design.md"
+  elif [ -f "$base/review.md" ]; then
+    review_file="$base/review.md"
+  fi
+fi
+
+# =============================================================================
+# Config reader (same pattern as check-crg-evidence.sh)
+# =============================================================================
+_read_config() {
+  local key="$1" default="$2" config=".ai-workflow-kit/config.json"
+  if [ ! -f "$config" ]; then echo "$default"; return; fi
+  if command -v jq &>/dev/null; then
+    local val
+    val=$(jq -r "$key // empty" "$config" 2>/dev/null)
+    [ -n "$val" ] && echo "$val" || echo "$default"
+  elif command -v python3 &>/dev/null; then
+    local val
+    val=$(python3 -c "
+import json
+try:
+  c=json.load(open('$config'))
+  keys='$key'.lstrip('.').split('.')
+  v=c
+  for k in keys: v=v[k]
+  print(v)
+except:
+  pass
+" 2>/dev/null)
+    [ -n "$val" ] && echo "$val" || echo "$default"
+  else
+    echo "$default"
+  fi
+}
+
+# Load thresholds
+SCOPE_DRIFT_THRESHOLD=$(_read_config ".thresholds.scopeDriftPercent" "20")
+COVERAGE_THRESHOLD=$(_read_config ".thresholds.changedSymbolTestCoveragePercent" "80")
+REQUIRE_E2E=$(_read_config ".gates.requireE2EForAffectedFlows" "true")
+
+# =============================================================================
+# Check tracking
+# =============================================================================
+PASS_COUNT=0
+FAIL_COUNT=0
+
+_pass() {
+  local desc="$1"
+  printf "CHECK: %-65s PASS\n" "$desc"
+  PASS_COUNT=$((PASS_COUNT + 1))
+}
+
+_fail() {
+  local desc="$1" reason="$2"
+  printf "CHECK: %-65s FAIL (%s)\n" "$desc" "$reason"
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+}
+
+# =============================================================================
+# Markdown helpers
+# =============================================================================
+
+# Extract content of a level-2 section (## Heading) from a file
+_extract_h2_section() {
+  local file="$1" heading="$2"
+  awk -v h="## $heading" '
+    found && /^## / { exit }
+    found { print }
+    $0 == h { found=1 }
+  ' "$file"
+}
+
+# Check whether a ## heading exists in a file
+_has_h2() {
+  local file="$1" heading="$2"
+  grep -q "^## $heading" "$file" 2>/dev/null
+}
+
+# Check whether a ### sub-heading exists within a block of text (stdin)
+_has_h3_in_block() {
+  local heading="$1"
+  grep -q "^### $heading"
+}
+
+# Extract content of a level-3 section within a block of text (stdin)
+_extract_h3_section() {
+  local heading="$1"
+  awk -v h="### $heading" '
+    found && /^### / { exit }
+    found { print }
+    $0 == h { found=1 }
+  '
+}
+
+# Get a field value from a block of text (- field_name: value)
+_get_field() {
+  local field="$1"
+  grep -E "^-?\s*${field}:" | head -1 | sed 's/.*://' | tr -d ' '
+}
+
+# Validate a subsection's verdict and return the value via stdout
+_get_verdict_for_subsection() {
+  local sub="$1" review_content="$2"
+  echo "$review_content" | _extract_h3_section "$sub" | _get_field "verdict"
+}
+
+# =============================================================================
+# VALIDATION: ## CRG Quantified Review
+# =============================================================================
+
+validate_quantified_review() {
+  # 1. File must exist
+  if [ -z "$review_file" ] || [ ! -f "$review_file" ]; then
+    _fail "review file exists (design.md or review.md)" "no file found under $base"
+    return
+  fi
+
+  # 2. Section must exist
+  if ! _has_h2 "$review_file" "CRG Quantified Review"; then
+    _fail "file has ## CRG Quantified Review section" "section not found in $review_file"
+    return
+  fi
+  _pass "file has ## CRG Quantified Review section"
+
+  local review_content
+  review_content=$(_extract_h2_section "$review_file" "CRG Quantified Review")
+
+  # 3. Required subsections
+  local required_subsections="Review Metadata|Scope Drift|Changed Function Test Coverage|Flow Impact|Knowledge Gaps|Final CRG Verdict"
+  local IFS_SAVE="$IFS"
+  IFS='|'
+  for sub in $required_subsections; do
+    IFS="$IFS_SAVE"
+    if echo "$review_content" | _has_h3_in_block "$sub"; then
+      _pass "CRG Quantified Review has ### $sub subsection"
+    else
+      _fail "CRG Quantified Review has ### $sub subsection" "subsection not found"
+    fi
+    IFS='|'
+  done
+  IFS="$IFS_SAVE"
+
+  # 4. Validate verdict fields for subsections that have them
+  # Use individual variables instead of associative array (bash 3 compat)
+
+  local verdict_scope_drift
+  verdict_scope_drift=$(_get_verdict_for_subsection "Scope Drift" "$review_content")
+  if echo "$verdict_scope_drift" | grep -qE "^(PASS|BLOCKING|NEEDS_HUMAN_DECISION)$"; then
+    _pass "Scope Drift: verdict is valid enum ($verdict_scope_drift)"
+  else
+    _fail "Scope Drift: verdict is valid enum" \
+      "got '$verdict_scope_drift', expected PASS|BLOCKING|NEEDS_HUMAN_DECISION"
+  fi
+
+  local verdict_coverage
+  verdict_coverage=$(_get_verdict_for_subsection "Changed Function Test Coverage" "$review_content")
+  if echo "$verdict_coverage" | grep -qE "^(PASS|BLOCKING|NEEDS_HUMAN_DECISION)$"; then
+    _pass "Changed Function Test Coverage: verdict is valid enum ($verdict_coverage)"
+  else
+    _fail "Changed Function Test Coverage: verdict is valid enum" \
+      "got '$verdict_coverage', expected PASS|BLOCKING|NEEDS_HUMAN_DECISION"
+  fi
+
+  local verdict_flow_impact
+  verdict_flow_impact=$(_get_verdict_for_subsection "Flow Impact" "$review_content")
+  if echo "$verdict_flow_impact" | grep -qE "^(PASS|BLOCKING|NEEDS_HUMAN_DECISION)$"; then
+    _pass "Flow Impact: verdict is valid enum ($verdict_flow_impact)"
+  else
+    _fail "Flow Impact: verdict is valid enum" \
+      "got '$verdict_flow_impact', expected PASS|BLOCKING|NEEDS_HUMAN_DECISION"
+  fi
+
+  local verdict_knowledge_gaps
+  verdict_knowledge_gaps=$(_get_verdict_for_subsection "Knowledge Gaps" "$review_content")
+  if echo "$verdict_knowledge_gaps" | grep -qE "^(PASS|BLOCKING|NEEDS_HUMAN_DECISION)$"; then
+    _pass "Knowledge Gaps: verdict is valid enum ($verdict_knowledge_gaps)"
+  else
+    _fail "Knowledge Gaps: verdict is valid enum" \
+      "got '$verdict_knowledge_gaps', expected PASS|BLOCKING|NEEDS_HUMAN_DECISION"
+  fi
+
+  # 5. Verdict consistency checks
+
+  # Scope Drift: drift_percent > threshold AND verdict=PASS → FAIL
+  local drift_content drift_percent
+  drift_content=$(echo "$review_content" | _extract_h3_section "Scope Drift")
+  drift_percent=$(echo "$drift_content" | _get_field "drift_percent")
+
+  if echo "$drift_percent" | grep -qE "^[0-9]+(\.[0-9]+)?$"; then
+    local drift_int
+    drift_int=$(echo "$drift_percent" | cut -d. -f1)
+    if [ "$drift_int" -gt "$SCOPE_DRIFT_THRESHOLD" ] && [ "$verdict_scope_drift" = "PASS" ]; then
+      _fail "Scope Drift: verdict consistency" \
+        "drift_percent ${drift_percent}% > threshold ${SCOPE_DRIFT_THRESHOLD}% but verdict=PASS"
+    else
+      _pass "Scope Drift: verdict consistency"
+    fi
+  fi
+
+  # Coverage: coverage_percent < threshold AND verdict=PASS → FAIL
+  local cov_content cov_percent
+  cov_content=$(echo "$review_content" | _extract_h3_section "Changed Function Test Coverage")
+  cov_percent=$(echo "$cov_content" | _get_field "coverage_percent")
+
+  if echo "$cov_percent" | grep -qE "^[0-9]+(\.[0-9]+)?$"; then
+    local cov_int
+    cov_int=$(echo "$cov_percent" | cut -d. -f1)
+    if [ "$cov_int" -lt "$COVERAGE_THRESHOLD" ] && [ "$verdict_coverage" = "PASS" ]; then
+      _fail "Changed Function Test Coverage: verdict consistency" \
+        "coverage_percent ${cov_percent}% < threshold ${COVERAGE_THRESHOLD}% but verdict=PASS"
+    else
+      _pass "Changed Function Test Coverage: verdict consistency"
+    fi
+  fi
+
+  # Flow Impact: flows_missing_e2e non-empty AND requireE2EForAffectedFlows=true AND verdict=PASS → FAIL
+  local flow_content flows_missing
+  flow_content=$(echo "$review_content" | _extract_h3_section "Flow Impact")
+  flows_missing=$(echo "$flow_content" | _get_field "flows_missing_e2e")
+
+  if [ "$REQUIRE_E2E" = "true" ]; then
+    local flows_missing_clean
+    flows_missing_clean=$(echo "$flows_missing" | tr -d ' ')
+    if [ "$flows_missing_clean" != "[]" ] && [ -n "$flows_missing_clean" ] && \
+       [ "$verdict_flow_impact" = "PASS" ]; then
+      _fail "Flow Impact: verdict consistency" \
+        "flows_missing_e2e is non-empty ($flows_missing) but verdict=PASS and requireE2EForAffectedFlows=true"
+    else
+      _pass "Flow Impact: verdict consistency"
+    fi
+  fi
+
+  # Knowledge Gaps: critical list non-empty AND verdict=PASS → FAIL
+  local gaps_content critical_list
+  gaps_content=$(echo "$review_content" | _extract_h3_section "Knowledge Gaps")
+  critical_list=$(echo "$gaps_content" | _get_field "critical")
+
+  local critical_clean
+  critical_clean=$(echo "$critical_list" | tr -d ' ')
+  if [ "$critical_clean" != "[]" ] && [ -n "$critical_clean" ] && \
+     [ "$verdict_knowledge_gaps" = "PASS" ]; then
+    _fail "Knowledge Gaps: verdict consistency" \
+      "critical list is non-empty ($critical_list) but verdict=PASS"
+  else
+    _pass "Knowledge Gaps: verdict consistency"
+  fi
+
+  # 6. Final CRG Verdict: archive_ready must be yes or no
+  local final_content archive_ready
+  final_content=$(echo "$review_content" | _extract_h3_section "Final CRG Verdict")
+  archive_ready=$(echo "$final_content" | _get_field "archive_ready")
+
+  if echo "$archive_ready" | grep -qE "^(yes|no)$"; then
+    _pass "Final CRG Verdict: archive_ready is yes or no ($archive_ready)"
+  else
+    _fail "Final CRG Verdict: archive_ready is yes or no" \
+      "got '$archive_ready', expected yes|no"
+  fi
+
+  # 7. If archive_ready=yes, ALL subsection verdicts must be PASS (contradiction check)
+  if [ "$archive_ready" = "yes" ]; then
+    local all_pass=true
+    local blockers=""
+
+    if [ "$verdict_scope_drift" != "PASS" ]; then
+      all_pass=false
+      blockers="${blockers} Scope Drift=${verdict_scope_drift}"
+    fi
+    if [ "$verdict_coverage" != "PASS" ]; then
+      all_pass=false
+      blockers="${blockers} Changed Function Test Coverage=${verdict_coverage}"
+    fi
+    if [ "$verdict_flow_impact" != "PASS" ]; then
+      all_pass=false
+      blockers="${blockers} Flow Impact=${verdict_flow_impact}"
+    fi
+    if [ "$verdict_knowledge_gaps" != "PASS" ]; then
+      all_pass=false
+      blockers="${blockers} Knowledge Gaps=${verdict_knowledge_gaps}"
+    fi
+
+    if $all_pass; then
+      _pass "Final CRG Verdict: archive_ready=yes is consistent (all subsections PASS)"
+    else
+      _fail "Final CRG Verdict: archive_ready=yes contradiction" \
+        "non-PASS subsections:$blockers"
+    fi
+  fi
+}
+
+# =============================================================================
+# Main execution
+# =============================================================================
+
+validate_quantified_review
+
+# Summary
+total=$((PASS_COUNT + FAIL_COUNT))
+echo ""
+echo "SUMMARY: $total checks, $PASS_COUNT passed, $FAIL_COUNT failed"
+
+if [ "$FAIL_COUNT" -gt 0 ]; then
+  exit 1
+fi
+
+exit 0
+AIWK_EOF
+
+cat > scripts/check-command-protocols.sh <<'AIWK_EOF'
+#!/usr/bin/env bash
+#
+# check-command-protocols.sh — verifies that .claude/commands/*.md files
+# contain V5 protocol keywords, preventing accidental installation of V1 commands.
+#
+# Usage:
+#   scripts/check-command-protocols.sh [command-directory]
+#   Default command-directory: .claude/commands
+#
+# Exit 0 if all checks pass, non-zero otherwise.
+
+set -euo pipefail
+
+cmd_dir="${1:-.claude/commands}"
+
+pass=0
+fail=0
+
+check() {
+  local file="$1"
+  local keyword="$2"
+  local label="$3"
+
+  if [ ! -f "$file" ]; then
+    printf "CHECK: %-55s FAIL (file not found)\n" "$label"
+    fail=$((fail + 1))
+    return
+  fi
+
+  if grep -qF "$keyword" "$file"; then
+    printf "CHECK: %-55s PASS\n" "$label"
+    pass=$((pass + 1))
+  else
+    printf "CHECK: %-55s FAIL\n" "$label"
+    fail=$((fail + 1))
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# spcrg-start.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-start.md"
+check "$f" "CRG Discovery Protocol"  "spcrg-start contains 'CRG Discovery Protocol'"
+check "$f" "Read Before Decide"       "spcrg-start contains 'Read Before Decide'"
+check "$f" "## CRG Discovery"         "spcrg-start contains '## CRG Discovery'"
+
+# ---------------------------------------------------------------------------
+# spcrg-plan.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-plan.md"
+check "$f" "CRG Precision Mapping Protocol"  "spcrg-plan contains 'CRG Precision Mapping Protocol'"
+check "$f" "superpowers:writing-plans"        "spcrg-plan contains 'superpowers:writing-plans'"
+check "$f" "## CRG Precision Plan"            "spcrg-plan contains '## CRG Precision Plan'"
+
+# ---------------------------------------------------------------------------
+# spcrg-dev.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-dev.md"
+check "$f" "Delta Check Protocol"            "spcrg-dev contains 'Delta Check Protocol'"
+check "$f" "CRG Post-Phase Verification"     "spcrg-dev contains 'CRG Post-Phase Verification'"
+check "$f" "PASS | BLOCKING | NEEDS_HUMAN_DECISION" \
+           "spcrg-dev contains 'PASS | BLOCKING | NEEDS_HUMAN_DECISION'"
+
+# ---------------------------------------------------------------------------
+# spcrg-review.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-review.md"
+check "$f" "CRG Quantified Review"  "spcrg-review contains 'CRG Quantified Review'"
+check "$f" "scope_drift"            "spcrg-review contains 'scope_drift'"
+check "$f" "archive_ready"          "spcrg-review contains 'archive_ready'"
+
+# ---------------------------------------------------------------------------
+# spcrg-archive.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-archive.md"
+check "$f" "check-v5-review.sh"  "spcrg-archive contains 'check-v5-review.sh'"
+check "$f" "/opsx:verify"        "spcrg-archive contains '/opsx:verify'"
+
+# ---------------------------------------------------------------------------
+# spcrg-audit.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-audit.md"
+check "$f" "structured evidence"  "spcrg-audit contains 'structured evidence'"
+check "$f" "Code Reading Summary" "spcrg-audit contains 'Code Reading Summary'"
+check "$f" "Precision Plan"       "spcrg-audit contains 'Precision Plan'"
+
+# ---------------------------------------------------------------------------
+# Gated commands must all embed both gate scripts
+# ---------------------------------------------------------------------------
+gated_files=(
+  "$cmd_dir/spcrg-plan.md"
+  "$cmd_dir/spcrg-dev.md"
+  "$cmd_dir/spcrg-review.md"
+  "$cmd_dir/spcrg-archive.md"
+  "$cmd_dir/spcrg-audit.md"
+)
+gated_names=(
+  "spcrg-plan"
+  "spcrg-dev"
+  "spcrg-review"
+  "spcrg-archive"
+  "spcrg-audit"
+)
+
+i=0
+while [ $i -lt ${#gated_files[@]} ]; do
+  gf="${gated_files[$i]}"
+  gn="${gated_names[$i]}"
+  check "$gf" "check-openspec-gate.sh"  "$gn contains 'check-openspec-gate.sh'"
+  check "$gf" "check-crg-evidence.sh"   "$gn contains 'check-crg-evidence.sh'"
+  i=$((i + 1))
+done
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+total=$((pass + fail))
+echo ""
+echo "SUMMARY: $total checks, $pass passed, $fail failed"
+
+if [ "$fail" -eq 0 ]; then
+  exit 0
+else
+  exit 1
+fi
+AIWK_EOF
+
+# Create config only if missing (preserve user customizations)
+if [ ! -f .ai-workflow-kit/config.json ]; then
+  mkdir -p .ai-workflow-kit
+cat > .ai-workflow-kit/config.json <<'AIWK_EOF'
+{
+  "version": "5",
+  "commandPrefix": "spcrg",
+  "thresholds": {
+    "scopeDriftPercent": 20,
+    "changedSymbolTestCoveragePercent": 80,
+    "discoveryMinReadings": 2,
+    "precisionPlanMinTasks": 1,
+    "maxCallChainDepth": 2
+  },
+  "gates": {
+    "requireE2EForAffectedFlows": true,
+    "allowHumanOverride": true,
+    "requireReviewBeforeArchive": true
+  }
+}
+AIWK_EOF
+  echo "Created default .ai-workflow-kit/config.json"
+else
+  echo "Keeping existing .ai-workflow-kit/config.json"
+fi
+
+
 chmod +x scripts/check-crg-evidence.sh
 chmod +x scripts/check-openspec-gate.sh
 chmod +x scripts/detect-change-id.sh
 chmod +x scripts/verify-install.sh
+chmod +x scripts/check-v5-review.sh
+chmod +x scripts/check-command-protocols.sh
 
 echo ""
 echo "AI Workflow Kit installed."
