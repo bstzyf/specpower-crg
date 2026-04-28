@@ -1,4 +1,4 @@
-# Spcrd Start: OpenSpec OPSX + Superpowers + CRG
+# Spcrg Start: OpenSpec OPSX + Superpowers + CRG
 
 User input:
 

@@ -4,15 +4,15 @@ This project uses OpenSpec OPSX, Superpowers, and code-review-graph together.
 
 Use project commands instead of ad-hoc long prompts:
 
-- `/spcrd-start <description>`
-- `/spcrd-plan <change-id>`
-- `/spcrd-dev <change-id>`
-- `/spcrd-review <change-id>`
-- `/spcrd-archive <change-id>`
-- `/spcrd-bugfix <bug description>`
-- `/spcrd-hotfix <incident description>`
-- `/spcrd-refactor <goal>`
-- `/spcrd-audit <change-id>`
+- `/spcrg-start <description>`
+- `/spcrg-plan <change-id>`
+- `/spcrg-dev <change-id>`
+- `/spcrg-review <change-id>`
+- `/spcrg-archive <change-id>`
+- `/spcrg-bugfix <bug description>`
+- `/spcrg-hotfix <incident description>`
+- `/spcrg-refactor <goal>`
+- `/spcrg-audit <change-id>`
 
 ## Responsibilities
 
@@ -22,7 +22,7 @@ Use project commands instead of ad-hoc long prompts:
 
 ## Rules
 
-1. New features and significant changes must start with `/spcrd-start`.
+1. New features and significant changes must start with `/spcrg-start`.
 2. Implementation must not start until OpenSpec artifacts and CRG Evidence exist.
 3. Superpowers planning and development must preserve OpenSpec scope.
 4. CRG Evidence is mandatory at phase transitions.
@@ -33,24 +33,24 @@ Use project commands instead of ad-hoc long prompts:
 
 ## Gate enforcement
 
-Gates are not advisory — they run as the **first step** (or, for `/spcrd-start`, as the **last step before approval**) of each phase command.
+Gates are not advisory — they run as the **first step** (or, for `/spcrg-start`, as the **last step before approval**) of each phase command.
 
 | Command | Gate timing | On failure |
 |---|---|---|
-| `/spcrd-start` | after propose + CRG + brainstorm + write-back | do not request approval; fix artifacts/evidence; re-run |
-| `/spcrd-plan` | first step | do not run `superpowers:writing-plans` |
-| `/spcrd-dev` | first step | do not run `superpowers:subagent-driven-development` |
-| `/spcrd-review` | first step | do not enter final review |
-| `/spcrd-archive` | first step and again right before `/opsx:verify` | do not run `/opsx:verify` or `/opsx:archive` |
-| `/spcrd-audit` | first step | **report-only**, no auto-repair unless requested |
-| `/spcrd-bugfix` | not required for plain bugfixes | if upgraded to an OpenSpec change, feature-style gates apply |
-| `/spcrd-hotfix` | before archive/release sign-off, only if a hotfix OpenSpec record exists | do not mark ready to ship |
+| `/spcrg-start` | after propose + CRG + brainstorm + write-back | do not request approval; fix artifacts/evidence; re-run |
+| `/spcrg-plan` | first step | do not run `superpowers:writing-plans` |
+| `/spcrg-dev` | first step | do not run `superpowers:subagent-driven-development` |
+| `/spcrg-review` | first step | do not enter final review |
+| `/spcrg-archive` | first step and again right before `/opsx:verify` | do not run `/opsx:verify` or `/opsx:archive` |
+| `/spcrg-audit` | first step | **report-only**, no auto-repair unless requested |
+| `/spcrg-bugfix` | not required for plain bugfixes | if upgraded to an OpenSpec change, feature-style gates apply |
+| `/spcrg-hotfix` | before archive/release sign-off, only if a hotfix OpenSpec record exists | do not mark ready to ship |
 
-If `$ARGUMENTS` is missing for a command that needs a change-id, Claude will run `scripts/detect-change-id.sh` and either confirm the single active change, list multiple active changes for selection, or ask the user to run `/spcrd-start` first.
+If `$ARGUMENTS` is missing for a command that needs a change-id, Claude will run `scripts/detect-change-id.sh` and either confirm the single active change, list multiple active changes for selection, or ask the user to run `/spcrg-start` first.
 
 ## CRG tool names
 
-Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual names exposed by the CRG MCP server and record the exact names used inside CRG Evidence so `/spcrd-audit` can verify usage later.
+Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual names exposed by the CRG MCP server and record the exact names used inside CRG Evidence so `/spcrg-audit` can verify usage later.
 
 ## Prerequisites
 
@@ -115,15 +115,15 @@ openspec/changes/archive/**
 ├── CLAUDE.md
 ├── .claude/
 │   ├── commands/
-│   │   ├── spcrd-start.md
-│   │   ├── spcrd-plan.md
-│   │   ├── spcrd-dev.md
-│   │   ├── spcrd-review.md
-│   │   ├── spcrd-archive.md
-│   │   ├── spcrd-bugfix.md
-│   │   ├── spcrd-hotfix.md
-│   │   ├── spcrd-refactor.md
-│   │   └── spcrd-audit.md
+│   │   ├── spcrg-start.md
+│   │   ├── spcrg-plan.md
+│   │   ├── spcrg-dev.md
+│   │   ├── spcrg-review.md
+│   │   ├── spcrg-archive.md
+│   │   ├── spcrg-bugfix.md
+│   │   ├── spcrg-hotfix.md
+│   │   ├── spcrg-refactor.md
+│   │   └── spcrg-audit.md
 │   └── skills/
 │       └── project-development-workflow/
 │           └── SKILL.md
@@ -142,35 +142,35 @@ openspec/changes/archive/**
 New feature:
 
 ```
-/spcrd-start 添加用户搜索，支持姓名和邮箱搜索，需要分页和权限控制
-/spcrd-plan add-user-search
-/spcrd-dev add-user-search
-/spcrd-review add-user-search
-/spcrd-archive add-user-search
+/spcrg-start 添加用户搜索，支持姓名和邮箱搜索，需要分页和权限控制
+/spcrg-plan add-user-search
+/spcrg-dev add-user-search
+/spcrg-review add-user-search
+/spcrg-archive add-user-search
 ```
 
 Bugfix:
 
 ```
-/spcrd-bugfix 登录态过期后刷新页面报 500
+/spcrg-bugfix 登录态过期后刷新页面报 500
 ```
 
 Hotfix:
 
 ```
-/spcrd-hotfix 生产支付回调失败导致订单未完成
+/spcrg-hotfix 生产支付回调失败导致订单未完成
 ```
 
 Refactor:
 
 ```
-/spcrd-refactor 拆分 user service 中的大函数并保持行为不变
+/spcrg-refactor 拆分 user service 中的大函数并保持行为不变
 ```
 
 CRG evidence audit:
 
 ```
-/spcrd-audit add-user-search
+/spcrg-audit add-user-search
 ```
 
 ## Gate & utility scripts
@@ -187,19 +187,19 @@ After installing into a fresh project:
 
 ```
 scripts/verify-install.sh .
-/spcrd-start test workflow kit with a tiny harmless change
+/spcrg-start test workflow kit with a tiny harmless change
 scripts/detect-change-id.sh
 scripts/check-openspec-gate.sh <change-id>
 scripts/check-crg-evidence.sh <change-id>
-/spcrd-plan <change-id>   # confirm plan runs the gate first
+/spcrg-plan <change-id>   # confirm plan runs the gate first
 ```
 
 ## Success criteria
 
 - No one copies long prompts anymore.
-- All features start from `/spcrd-start`.
+- All features start from `/spcrg-start`.
 - CRG Evidence is a product of every phase.
 - Superpowers automatically drives brainstorm / plan / dev / review / verify.
 - OpenSpec stores the long-term memory of proposals / design / specs / tasks / archive.
-- `/spcrd-audit` can verify evidence completeness before review.
+- `/spcrg-audit` can verify evidence completeness before review.
 - Gate scripts are invoked automatically by the commands — not by trust.

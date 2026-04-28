@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# verify-install.sh — acceptance checks for the AI Workflow Kit (spcrd prefix).
+# verify-install.sh — acceptance checks for the AI Workflow Kit (spcrg prefix).
 #
 # Implements §14.1–14.3 from the implementation handbook:
 #   1. All nine commands exist.
@@ -21,15 +21,15 @@ bad()  { printf "  \033[31mfail\033[0m %s\n" "$*"; fail=$((fail+1)); }
 
 echo "[1/4] commands exist"
 required_commands=(
-  .claude/commands/spcrd-start.md
-  .claude/commands/spcrd-plan.md
-  .claude/commands/spcrd-dev.md
-  .claude/commands/spcrd-review.md
-  .claude/commands/spcrd-archive.md
-  .claude/commands/spcrd-bugfix.md
-  .claude/commands/spcrd-hotfix.md
-  .claude/commands/spcrd-refactor.md
-  .claude/commands/spcrd-audit.md
+  .claude/commands/spcrg-start.md
+  .claude/commands/spcrg-plan.md
+  .claude/commands/spcrg-dev.md
+  .claude/commands/spcrg-review.md
+  .claude/commands/spcrg-archive.md
+  .claude/commands/spcrg-bugfix.md
+  .claude/commands/spcrg-hotfix.md
+  .claude/commands/spcrg-refactor.md
+  .claude/commands/spcrg-audit.md
 )
 for f in "${required_commands[@]}"; do
   if [ -f "$f" ]; then ok "$f"; else bad "missing $f"; fi
@@ -55,11 +55,11 @@ done
 echo ""
 echo "[3/4] commands embed gate script calls"
 gated_commands=(
-  .claude/commands/spcrd-plan.md
-  .claude/commands/spcrd-dev.md
-  .claude/commands/spcrd-review.md
-  .claude/commands/spcrd-archive.md
-  .claude/commands/spcrd-audit.md
+  .claude/commands/spcrg-plan.md
+  .claude/commands/spcrg-dev.md
+  .claude/commands/spcrg-review.md
+  .claude/commands/spcrg-archive.md
+  .claude/commands/spcrg-audit.md
 )
 for f in "${gated_commands[@]}"; do
   if [ ! -f "$f" ]; then
@@ -74,13 +74,13 @@ for f in "${gated_commands[@]}"; do
 done
 
 echo ""
-echo "[4/4] spcrd-start.md runs gate after artifacts"
-if [ -f .claude/commands/spcrd-start.md ]; then
-  if grep -q "check-openspec-gate.sh" .claude/commands/spcrd-start.md \
-     && grep -q "check-crg-evidence.sh" .claude/commands/spcrd-start.md; then
-    ok ".claude/commands/spcrd-start.md embeds gate scripts at the end"
+echo "[4/4] spcrg-start.md runs gate after artifacts"
+if [ -f .claude/commands/spcrg-start.md ]; then
+  if grep -q "check-openspec-gate.sh" .claude/commands/spcrg-start.md \
+     && grep -q "check-crg-evidence.sh" .claude/commands/spcrg-start.md; then
+    ok ".claude/commands/spcrg-start.md embeds gate scripts at the end"
   else
-    bad "spcrd-start.md must embed both gate scripts"
+    bad "spcrg-start.md must embed both gate scripts"
   fi
 fi
 

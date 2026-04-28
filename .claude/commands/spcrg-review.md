@@ -1,4 +1,4 @@
-# Spcrd Review
+# Spcrg Review
 
 Change ID:
 
@@ -11,7 +11,7 @@ If `$ARGUMENTS` is empty:
 1. Run `scripts/detect-change-id.sh`.
 2. If exactly one active change exists, report it and ask the user to confirm before using it.
 3. If multiple active changes exist, list them and ask the user to pick one.
-4. If none exist, tell the user to run `/spcrd-start <description>` first, then stop.
+4. If none exist, tell the user to run `/spcrg-start <description>` first, then stop.
 
 Do not proceed until a concrete change-id is chosen.
 

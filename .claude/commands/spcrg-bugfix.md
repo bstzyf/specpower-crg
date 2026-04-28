@@ -1,4 +1,4 @@
-# Spcrd Bugfix Workflow
+# Spcrg Bugfix Workflow
 
 Bug:
 
@@ -15,10 +15,10 @@ However, as soon as the bug analysis reveals that expected behavior, public API,
 1. Stop bugfix workflow.
 2. Run `/opsx:propose fix-{bug-name}`.
 3. From that point treat it as a feature-style change:
-   - `/spcrd-plan fix-{bug-name}`
-   - `/spcrd-dev fix-{bug-name}`
-   - `/spcrd-review fix-{bug-name}`
-   - `/spcrd-archive fix-{bug-name}`
+   - `/spcrg-plan fix-{bug-name}`
+   - `/spcrg-dev fix-{bug-name}`
+   - `/spcrg-review fix-{bug-name}`
+   - `/spcrg-archive fix-{bug-name}`
 4. All feature-style gate scripts apply from that point.
 
 ## Debugging
