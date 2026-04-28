@@ -1,0 +1,16 @@
+{
+  "version": "5",
+  "commandPrefix": "spcrg",
+  "thresholds": {
+    "scopeDriftPercent": 20,
+    "changedSymbolTestCoveragePercent": 80,
+    "discoveryMinReadings": 2,
+    "precisionPlanMinTasks": 1,
+    "maxCallChainDepth": 2
+  },
+  "gates": {
+    "requireE2EForAffectedFlows": true,
+    "allowHumanOverride": true,
+    "requireReviewBeforeArchive": true
+  }
+}
