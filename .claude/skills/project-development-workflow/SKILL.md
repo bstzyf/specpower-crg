@@ -7,6 +7,17 @@ description: Use for all feature work, bugfixes, hotfixes, refactors, OpenSpec O
 
 Use OpenSpec OPSX, Superpowers, and CRG together.
 
+## V5 Core Principle
+
+CRG tells where; read code decides what; CRG verifies after.
+
+- CRG is a navigator + verifier, not an evidence collector.
+- Every CRG hit MUST be paired with actual source reading before deciding.
+- Evidence is structured decisions, not raw tool output.
+- Later phases inherit earlier phases' evidence; do NOT re-search from scratch.
+- Dev Pre-Phase uses Delta Check, not ritualistic re-queries.
+- Verdicts are numeric-consistent; scripts enforce the shape, the agent enforces the thinking.
+
 ## Responsibilities
 
 - OpenSpec defines intended behavior.
@@ -17,24 +28,49 @@ Use OpenSpec OPSX, Superpowers, and CRG together.
 
 1. New features and significant changes start with `/spcrg-start`.
 2. Do not implement until OpenSpec artifacts and CRG Evidence exist.
-3. Use `superpowers:brainstorming` after OpenSpec proposal and CRG Context Pass.
+3. Use `superpowers:brainstorming` after OpenSpec proposal and CRG Discovery Pass.
 4. Use `superpowers:writing-plans` before implementation.
 5. Use `superpowers:subagent-driven-development` for implementation.
 6. Use CRG Pre-Phase and Post-Phase checks around every implementation phase.
-7. Run OpenSpec compliance review, CRG final impact review, and Superpowers review before archive.
+7. Run OpenSpec compliance review, CRG Quantified Review, and Superpowers review before archive.
 8. Run `/opsx:verify` before `/opsx:archive` when available.
+9. Every CRG hit requires actual source reading before any decision is made.
+10. Evidence must use structured schemas — do not record raw tool output as evidence.
+11. Later phases inherit earlier phases' evidence; do not re-run Discovery searches from scratch.
+12. Dev Pre-Phase runs Delta Check; skip re-queries if the change is continuous from the prior phase.
+
+## Session & State
+
+Each change has a state file at `.ai-workflow-kit/state/<change-id>.json`.
+
+When `/spcrg-*` commands start:
+1. Generate or reuse `$AIWK_SESSION_ID` (uuidgen fallback).
+2. Compute current tree hash: `git ls-files --stage | sha256sum | cut -c1-16`.
+3. Read state to determine phase progression and continuity.
+4. Write state at end of each phase completion.
+
+The state file is gitignored — per-developer runtime data.
+
+## Config
+
+Thresholds and gate behavior live in `.ai-workflow-kit/config.json`.
+Scripts read via jq (preferred) or python3 (fallback).
+If neither available, scripts fall back to hardcoded defaults.
+Do not hardcode thresholds in command prose — reference config field names.
 
 ## Command Map
 
-- `/spcrg-start <description>` — propose + CRG Context Pass + brainstorming (gate runs at the **end**, before asking for approval)
-- `/spcrg-plan <change-id>` — rewrite tasks.md with TDD + CRG checks (gate runs **first**)
-- `/spcrg-dev <change-id>` — subagent-driven TDD execution with CRG pre/post checks (gate runs **first**)
-- `/spcrg-review <change-id>` — OpenSpec + CRG + Superpowers review (gate runs **first**)
-- `/spcrg-archive <change-id>` — verification + CRG Archive Gate + /opsx:verify + /opsx:archive (gate runs **first**, and re-checks right before `/opsx:verify`)
-- `/spcrg-bugfix <bug>` — lightweight systematic debugging + CRG diagnosis. No OpenSpec gate for plain bugfixes; upgrade to `/opsx:propose fix-...` if behavior changes, then feature-style gates apply.
-- `/spcrg-hotfix <incident>` — minimal production fix + CRG fast diagnosis. If a hotfix OpenSpec record is created, gates apply before archive / release-readiness.
-- `/spcrg-refactor <goal>` — CRG refactor assessment + Superpowers brainstorming
-- `/spcrg-audit <change-id>` — CRG evidence completeness audit (gate runs but is **report-only**)
+| Command | V5 Protocol | Produces Evidence | Gate Scripts |
+|---|---|---|---|
+| `/spcrg-start <description>` | Discovery Protocol: CRG navigate → agent Read → agent Decide → structured Decision Evidence | `openspec/changes/<id>/design.md#CRG Discovery Evidence` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (run after propose + CRG + brainstorm + write-back, before approval) |
+| `/spcrg-plan <change-id>` | Precision Mapping: inherit Discovery + CRG Precision Pass → function-level TDD tasks | `openspec/changes/<id>/tasks.md#CRG Precision Mapping` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
+| `/spcrg-dev <change-id>` | Delta Check (continuous vs resumed) + TDD red/green/refactor + CRG Post-Phase Verification per phase | `tasks.md#CRG Post-Phase Verification: Phase N` per phase | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
+| `/spcrg-review <change-id>` | OpenSpec compliance + CRG Quantified Review (aggregate all phases) + Superpowers code review | `design.md#CRG Quantified Review` with `archive_ready` verdict | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step; `check-v5-review.sh` is this command's OUTPUT, not entry gate) |
+| `/spcrg-archive <change-id>` | Assert `archive_ready == yes` + verification + CRG Archive Gate + `/opsx:verify` + `/opsx:archive` + state update | state `phase=archive` | `check-openspec-gate.sh`, `check-crg-evidence.sh`, `check-v5-review.sh` (first step and again before `/opsx:verify`) |
+| `/spcrg-bugfix <bug>` | Read Before Decide on diagnosis; CRG fast diagnosis; no OpenSpec gate for plain bugfix | diagnosis notes (informal) | none required for plain bugfix; if upgraded to OpenSpec change, feature gates apply |
+| `/spcrg-hotfix <incident>` | Read Before Decide; CRG fast diagnosis; minimal production fix | hotfix notes (informal) | `check-openspec-gate.sh`, `check-crg-evidence.sh` before archive/release sign-off only if a hotfix OpenSpec record exists |
+| `/spcrg-refactor <goal>` | Read Before Decide; CRG refactor assessment + Superpowers brainstorming | refactor scope assessment | none required unless OpenSpec record created |
+| `/spcrg-audit <change-id>` | Structured evidence completeness audit across all phases | audit report | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step; report-only, no auto-repair unless requested) |
 
 ## Gate Script Matrix
 
@@ -44,7 +80,7 @@ Use OpenSpec OPSX, Superpowers, and CRG together.
 | `/spcrg-plan` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `superpowers:writing-plans` |
 | `/spcrg-dev` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `superpowers:subagent-driven-development` |
 | `/spcrg-review` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not enter final review |
-| `/spcrg-archive` | first step, and re-check right before `/opsx:verify` | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `/opsx:verify` or `/opsx:archive` |
+| `/spcrg-archive` | first step, and re-check right before `/opsx:verify` | `check-openspec-gate.sh`, `check-crg-evidence.sh`, `check-v5-review.sh` | do not run `/opsx:verify` or `/opsx:archive` |
 | `/spcrg-audit` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | report only; no auto-repair unless requested |
 | `/spcrg-bugfix` | not required for plain bugfix | n/a | if upgraded to OpenSpec change, gates apply |
 | `/spcrg-hotfix` | before archive/release sign-off, only if OpenSpec hotfix record exists | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not mark ready to ship |
@@ -73,4 +109,5 @@ Stop and report if:
 - Required tests cannot be found or run.
 - E2E is required but unavailable.
 - A subagent needs to exceed OpenSpec scope.
-- A gate script keeps failing after a repair attempt.
+- A gate script keeps failing after repair.
+- Gate script keeps failing after repair attempt.
