@@ -43,11 +43,10 @@ for case_dir in "$fixtures"/*/; do
   cp "$fixtures/config.json" "$workdir/.ai-workflow-kit/config.json"
 
   if [[ "$case_name" == good-discovery-minimal ]]; then
-    output=$(cd "$workdir" && AIWK_CHECK_CRG_MODE=shape-only "$script" "$case_name" 2>&1) || true
+    output=$(cd "$workdir" && AIWK_CHECK_CRG_MODE=shape-only "$script" "$case_name" 2>&1); actual_exit=$?
   else
-    output=$(cd "$workdir" && "$script" "$case_name" 2>&1) || true
+    output=$(cd "$workdir" && "$script" "$case_name" 2>&1); actual_exit=$?
   fi
-  actual_exit=$?
 
   rm -rf "$workdir"
 
