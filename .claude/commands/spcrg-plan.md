@@ -1,4 +1,4 @@
-# Spcrg Plan
+# Spcrg Plan: CRG Precision Mapping Protocol
 
 Change ID:
 
@@ -11,7 +11,7 @@ If `$ARGUMENTS` is empty:
 1. Run `scripts/detect-change-id.sh`.
 2. If exactly one active change exists, report it and ask the user to confirm before using it.
 3. If multiple active changes exist, list them and ask the user to pick one.
-4. If none exist, tell the user to run `/spcrg-start <description>` or `/opsx:propose <description>` first, then stop.
+4. If none exist, tell the user to run `/spcrg-start <description>` first, then stop.
 
 Do not proceed until a concrete change-id is chosen.
 
@@ -27,63 +27,136 @@ scripts/check-crg-evidence.sh $ARGUMENTS
 If either command fails:
 
 1. Do not run `superpowers:writing-plans`.
-2. Report exactly what is missing.
+2. Report exactly what is missing (section name, field name, row count).
 3. If the missing item can be fixed from existing context, fix the OpenSpec artifact or CRG Evidence first.
 4. Re-run the failed script.
 5. Continue only after both scripts pass.
 
-## Plan phase
+## CRG Precision Mapping Protocol
 
-Use `superpowers:writing-plans` to rewrite the OpenSpec tasks file.
+Do NOT repeat `/spcrg-start`'s broad discovery unless `design.md#CRG Discovery` is missing or older than 7 days. Inherit and extend, do not re-search from scratch.
 
-### Input files
+### Step 1: Inherit Discovery
 
-- openspec/changes/$ARGUMENTS/proposal.md
-- openspec/changes/$ARGUMENTS/design.md
-- openspec/changes/$ARGUMENTS/specs/**
-- openspec/changes/$ARGUMENTS/tasks.md
+Read `design.md#CRG Discovery`. The following are your starting state:
 
-### CRG Planning Analysis
+- **Entry Points** — file:function pairs to trace
+- **Involved Modules** — modify / add / read-only designations
+- **Risk Boundary** — expected_changed_files, expected_changed_symbols, hub_nodes, bridge_nodes
 
-Before writing the plan, run these CRG tools:
+### Step 2: Expand via call graph
 
-Required:
+For each Entry Point marked `modify` or `add`:
 
-- get_minimal_context_tool
-- semantic_search_nodes_tool
-- query_graph_tool for callers/callees/imports/tests_for
-- get_impact_radius_tool
+1. Run `query_graph callers/callees` with depth ≤ `config.thresholds.maxCallChainDepth` (default 2).
+2. Read the actual source code of every caller and callee flagged as a modify candidate.
+3. Record each examined symbol as a row in the Function-Level Change Map table.
 
-For complex flows, also use:
+### Step 3: Test coverage pass
 
-- traverse_graph_tool
-- list_flows_tool
-- get_flow_tool
-- find_large_functions_tool
+For each symbol in the Function-Level Change Map:
 
-> Tool names may appear with or without the `_tool` suffix in Claude Code. Use the actual tool names exposed by the CRG MCP server and record the exact names used inside CRG Evidence.
+1. Run `query_graph pattern="tests_for"`.
+2. Read the existing test file.
+3. Decide: `extend | new file | explicit no-test-justification`.
+4. Record in the Test Coverage Plan table.
 
-### Output
+### Step 4: Phase grouping
 
-Rewrite:
+Group tasks into phases. Each phase must:
 
-openspec/changes/$ARGUMENTS/tasks.md
+- Touch ≤ 5 files
+- Have a runnable `verification_command`
+- Complete its own Post-Phase Verification independently
 
-Requirements:
+### Step 5: Hand off to superpowers:writing-plans
 
-1. Preserve OpenSpec checklist format.
-2. Every task must include:
-   - task id
-   - exact files
-   - TDD steps
-   - verification command
-   - related spec/design reference
-   - related CRG evidence
-3. Every phase must include:
-   - CRG Pre-Phase Check
-   - Tasks
-   - CRG Post-Phase Check
-4. Do not expand scope beyond OpenSpec.
-5. Stop after writing the plan and ask for execution approval.
+Pass the Precision Mapping output — Entry Points, Function-Level Change Map, Test Coverage Plan, Phase grouping — as input to `superpowers:writing-plans`.
 
-If CRG evidence is missing, run CRG first.
+Superpowers produces TDD-structured tasks at file:function level:
+
+- red (failing test)
+- green (minimal implementation)
+- refactor (improve without breaking)
+
+### Step 6: Write Evidence
+
+Write `## CRG Precision Plan` into `tasks.md` per the V5 schema exactly:
+
+```
+## CRG Precision Plan
+
+### Mapping Metadata
+- based_on_discovery: <timestamp from Discovery Metadata>
+- generated_by: /spcrg-plan
+- generated_at: <ISO 8601 UTC>
+
+### Function-Level Change Map
+| Task | Target | Current Behavior | Required Change | Tests | Reference Pattern | Risk |
+|---|---|---|---|---|---|---|
+| <id> | <file:symbol> | <text> | <text> | <test path or "none-with-justification"> | <file:symbol> | low | medium | high |
+
+### Test Coverage Plan
+| Changed Symbol | Existing Test | New Test Case | Verification Command |
+|---|---|---|---|
+
+### Phase Plan
+
+#### Phase N: <name>
+- expected_files: [...]
+- expected_symbols: [...]
+- required_tests: [...]
+- verification_command: `<command>`
+- crg_post_phase_checks: [<tool names to run in Post-Phase Verification>]
+```
+
+## V5 Task Granularity Rule
+
+Tasks MUST be written at file:function level.
+
+BAD:
+```
+- [ ] Modify UserService
+```
+
+GOOD:
+```
+- [ ] 1.2 Extend src/services/UserService.ts:searchUsers() to accept email filter
+        - Current behavior: only filters by displayName
+        - Required change: add optional email predicate; preserve pagination
+        - Reference pattern: src/services/UserService.ts:findByName()
+        - TDD: write failing test → red → minimal impl → green → refactor
+        - Verification: pnpm test tests/services/UserService.test.ts
+        - CRG evidence: design.md#CRG Discovery, tasks.md#CRG Precision Plan row 1.2
+```
+
+Every task must include:
+
+- task id
+- exact `file:function` target
+- current behavior description
+- required change description
+- TDD steps (red → green → refactor)
+- verification command
+- reference pattern (file:function, or "none")
+- related CRG evidence reference
+
+## State write
+
+After the plan is written and execution approval is granted, write `.ai-workflow-kit/state/<change-id>.json` with `phase=plan`:
+
+```json
+{
+  "phases": {
+    "plan": {
+      "status": "completed",
+      "completedAt": "<ISO 8601 UTC>",
+      "sessionId": "<AIWK_SESSION_ID>",
+      "treeHash": "<git ls-files --stage | sha256sum | cut -c1-16>",
+      "plannedPhases": <integer from Phase Plan>
+    }
+  }
+}
+```
+
+Stop after writing the plan and ask for execution approval. Do not implement code.
