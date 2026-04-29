@@ -267,8 +267,8 @@ Superpowers 说：怎么做才能高质量地做到
 
 **如果发现修复需要改变预期行为：**
 - 停止 bugfix 流程
-- 升级为 `/opsx:propose fix-{bug-name}`
-- 从此按特性流程走（start → plan → dev → review → archive）
+- 升级为 `/spcrg-start fix-{bug-name}`（走完整 V5 流程：Discovery + brainstorming + gates）
+- 从此按特性流程走（plan → dev → review → archive）
 
 ---
 

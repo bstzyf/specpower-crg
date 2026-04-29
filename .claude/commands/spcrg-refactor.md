@@ -43,7 +43,7 @@ Use superpowers:brainstorming to clarify:
 
 If external behavior, public API, or architecture rules change, stop and upgrade to:
 
-/opsx:propose {refactor-change-name}
+/spcrg-start {refactor-change-name}
 
 ## V5 Rule: Read Before Decide
 

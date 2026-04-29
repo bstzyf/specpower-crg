@@ -13,8 +13,8 @@ A plain bugfix does **not** create an OpenSpec change, so the OpenSpec gate scri
 However, as soon as the bug analysis reveals that expected behavior, public API, data model, or spec must change:
 
 1. Stop bugfix workflow.
-2. Run `/opsx:propose fix-{bug-name}`.
-3. From that point treat it as a feature-style change:
+2. Run `/spcrg-start fix-{bug-name}` to get full V5 treatment (Discovery + brainstorming + gates).
+3. Then follow the complete feature flow:
    - `/spcrg-plan fix-{bug-name}`
    - `/spcrg-dev fix-{bug-name}`
    - `/spcrg-review fix-{bug-name}`
@@ -54,7 +54,7 @@ If root cause is unclear, also use:
 
 If expected behavior changes, stop and upgrade to:
 
-/opsx:propose fix-{bug-name}
+/spcrg-start fix-{bug-name}
 
 ## V5 Rule: Read Before Decide
 
