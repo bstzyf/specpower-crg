@@ -69,19 +69,22 @@ Group tasks into phases. Each phase must:
 - Have a runnable `verification_command`
 - Complete its own Post-Phase Verification independently
 
-### Step 5: Hand off to superpowers:writing-plans
+### Step 5: Write CRG Precision Plan to tasks.md FIRST
 
-Pass the Precision Mapping output — Entry Points, Function-Level Change Map, Test Coverage Plan, Phase grouping — as input to `superpowers:writing-plans`.
+**CRITICAL:** Before calling superpowers:writing-plans, you MUST write `## CRG Precision Plan` into `openspec/changes/$ARGUMENTS/tasks.md` per the V5 schema below. This is the structured evidence that gate scripts validate. The section must remain at the TOP of tasks.md and must NOT be removed or overwritten by any subsequent step.
 
-Superpowers produces TDD-structured tasks at file:function level:
+### Step 6: Hand off to superpowers:writing-plans
 
-- red (failing test)
-- green (minimal implementation)
-- refactor (improve without breaking)
+Pass the Precision Mapping output as input to `superpowers:writing-plans`. It produces TDD-structured tasks (red/green/refactor). The superpowers plan output should be APPENDED BELOW the `## CRG Precision Plan` section in tasks.md, or saved separately to `docs/superpowers/plans/`. Either way, the `## CRG Precision Plan` section in tasks.md must be preserved intact.
 
-### Step 6: Write Evidence
+### Required tasks.md structure
 
-Write `## CRG Precision Plan` into `tasks.md` per the V5 schema exactly:
+The final tasks.md MUST have this structure (gate scripts validate it):
+
+1. `## CRG Precision Plan` section (structured evidence — validated by check-crg-evidence.sh)
+2. Task checklist with `- [ ]` items at file:function granularity (validated by check-openspec-gate.sh archive mode)
+
+Write `## CRG Precision Plan` per this exact V5 schema:
 
 ```
 ## CRG Precision Plan
