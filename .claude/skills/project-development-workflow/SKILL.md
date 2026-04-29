@@ -65,6 +65,7 @@ Do not hardcode thresholds in command prose — reference config field names.
 | `/spcrg-start <description>` | Discovery Protocol: CRG navigate → agent Read → agent Decide → structured Decision Evidence | `openspec/changes/<id>/design.md#CRG Discovery Evidence` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (run after propose + CRG + brainstorm + write-back, before approval) |
 | `/spcrg-plan <change-id>` | Precision Mapping: inherit Discovery + CRG Precision Pass → function-level TDD tasks | `openspec/changes/<id>/tasks.md#CRG Precision Mapping` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
 | `/spcrg-dev <change-id>` | Delta Check (continuous vs resumed) + TDD red/green/refactor + CRG Post-Phase Verification per phase | `tasks.md#CRG Post-Phase Verification: Phase N` per phase | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
+| `/spcrg-loop <change-id>` | Ralph-Driven Loop: iterative implement → test → verify → review cycle until archive_ready | `tasks.md#CRG Post-Phase Verification` per phase + `design.md#CRG Quantified Review` | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step) |
 | `/spcrg-review <change-id>` | OpenSpec compliance + CRG Quantified Review (aggregate all phases) + Superpowers code review | `design.md#CRG Quantified Review` with `archive_ready` verdict | `check-openspec-gate.sh`, `check-crg-evidence.sh` (first step; `check-v5-review.sh` is this command's OUTPUT, not entry gate) |
 | `/spcrg-archive <change-id>` | Assert `archive_ready == yes` + verification + CRG Archive Gate + `/opsx:verify` + `/opsx:archive` + state update | state `phase=archive` | `check-openspec-gate.sh`, `check-crg-evidence.sh`, `check-v5-review.sh` (first step and again before `/opsx:verify`) |
 | `/spcrg-bugfix <bug>` | Read Before Decide on diagnosis; CRG fast diagnosis; no OpenSpec gate for plain bugfix | diagnosis notes (informal) | none required for plain bugfix; if upgraded to OpenSpec change, feature gates apply |
@@ -79,6 +80,7 @@ Do not hardcode thresholds in command prose — reference config field names.
 | `/spcrg-start` | after propose + CRG + brainstorm + write-back | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not request approval; repair and re-run |
 | `/spcrg-plan` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `superpowers:writing-plans` |
 | `/spcrg-dev` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not run `superpowers:subagent-driven-development` |
+| `/spcrg-loop` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not start Ralph Loop |
 | `/spcrg-review` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | do not enter final review |
 | `/spcrg-archive` | first step, and re-check right before `/opsx:verify` | `check-openspec-gate.sh`, `check-crg-evidence.sh`, `check-v5-review.sh` | do not run `/opsx:verify` or `/opsx:archive` |
 | `/spcrg-audit` | first step | `check-openspec-gate.sh`, `check-crg-evidence.sh` | report only; no auto-repair unless requested |

@@ -7,6 +7,7 @@ Use project commands instead of ad-hoc long prompts:
 - `/spcrg-start <description>`
 - `/spcrg-plan <change-id>`
 - `/spcrg-dev <change-id>`
+- `/spcrg-loop <change-id>`
 - `/spcrg-review <change-id>`
 - `/spcrg-archive <change-id>`
 - `/spcrg-bugfix <bug description>`
@@ -44,6 +45,7 @@ Gates are not advisory — they run as the **first step** (or, for `/spcrg-start
 | `/spcrg-start` | after propose + CRG + brainstorm + write-back | do not request approval; fix artifacts/evidence; re-run |
 | `/spcrg-plan` | first step | do not run `superpowers:writing-plans` |
 | `/spcrg-dev` | first step | do not run `superpowers:subagent-driven-development` |
+| `/spcrg-loop` | first step | do not start Ralph Loop |
 | `/spcrg-review` | first step | do not enter final review |
 | `/spcrg-archive` | first step and again right before `/opsx:verify` (includes `check-v5-review.sh`) | do not run `/opsx:verify` or `/opsx:archive` |
 | `/spcrg-audit` | first step | **report-only**, no auto-repair unless requested |
@@ -165,13 +167,22 @@ openspec/changes/archive/**
 
 ## Daily usage
 
-New feature:
+New feature (manual mode):
 
 ```
 /spcrg-start 添加用户搜索，支持姓名和邮箱搜索，需要分页和权限控制
 /spcrg-plan add-user-search
 /spcrg-dev add-user-search
 /spcrg-review add-user-search
+/spcrg-archive add-user-search
+```
+
+New feature (loop mode — Ralph-driven iterative development):
+
+```
+/spcrg-start 添加用户搜索，支持姓名和邮箱搜索，需要分页和权限控制
+/spcrg-plan add-user-search
+/spcrg-loop add-user-search
 /spcrg-archive add-user-search
 ```
 

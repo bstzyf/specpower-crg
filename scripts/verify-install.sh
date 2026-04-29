@@ -30,6 +30,7 @@ required_commands=(
   .claude/commands/spcrg-hotfix.md
   .claude/commands/spcrg-refactor.md
   .claude/commands/spcrg-audit.md
+  .claude/commands/spcrg-loop.md
 )
 for f in "${required_commands[@]}"; do
   if [ -f "$f" ]; then ok "$f"; else bad "missing $f"; fi
@@ -62,6 +63,7 @@ gated_commands=(
   .claude/commands/spcrg-review.md
   .claude/commands/spcrg-archive.md
   .claude/commands/spcrg-audit.md
+  .claude/commands/spcrg-loop.md
 )
 for f in "${gated_commands[@]}"; do
   if [ ! -f "$f" ]; then

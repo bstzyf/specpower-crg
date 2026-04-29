@@ -45,7 +45,7 @@ HEADER
 
 for cmd in \
   spcrg-start spcrg-plan spcrg-dev spcrg-review spcrg-archive \
-  spcrg-bugfix spcrg-hotfix spcrg-refactor spcrg-audit
+  spcrg-bugfix spcrg-hotfix spcrg-refactor spcrg-audit spcrg-loop
 do
   emit_file ".claude/commands/${cmd}.md" ".claude/commands/${cmd}.md"
 done

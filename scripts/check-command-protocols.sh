@@ -85,6 +85,14 @@ check "$f" "Code Reading Summary" "spcrg-audit contains 'Code Reading Summary'"
 check "$f" "Precision Plan"       "spcrg-audit contains 'Precision Plan'"
 
 # ---------------------------------------------------------------------------
+# spcrg-loop.md
+# ---------------------------------------------------------------------------
+f="$cmd_dir/spcrg-loop.md"
+check "$f" "Ralph Loop"              "spcrg-loop contains 'Ralph Loop'"
+check "$f" "Navigator Prompt"        "spcrg-loop contains 'Navigator Prompt'"
+check "$f" "ARCHIVE_READY"           "spcrg-loop contains 'ARCHIVE_READY'"
+
+# ---------------------------------------------------------------------------
 # Gated commands must all embed both gate scripts
 # ---------------------------------------------------------------------------
 gated_files=(
@@ -93,6 +101,7 @@ gated_files=(
   "$cmd_dir/spcrg-review.md"
   "$cmd_dir/spcrg-archive.md"
   "$cmd_dir/spcrg-audit.md"
+  "$cmd_dir/spcrg-loop.md"
 )
 gated_names=(
   "spcrg-plan"
@@ -100,6 +109,7 @@ gated_names=(
   "spcrg-review"
   "spcrg-archive"
   "spcrg-audit"
+  "spcrg-loop"
 )
 
 i=0

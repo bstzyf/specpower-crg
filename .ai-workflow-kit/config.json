@@ -12,5 +12,9 @@
     "requireE2EForAffectedFlows": true,
     "allowHumanOverride": true,
     "requireReviewBeforeArchive": true
+  },
+  "loop": {
+    "maxIterations": 10,
+    "completionPromise": "ARCHIVE_READY"
   }
 }
