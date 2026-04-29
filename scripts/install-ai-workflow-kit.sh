@@ -815,7 +815,7 @@ Do not proceed until a concrete change-id is chosen.
 Before verification or archive, run:
 
 ```
-scripts/check-openspec-gate.sh $ARGUMENTS
+AIWK_OPENSPEC_MODE=archive scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
 scripts/check-v5-review.sh $ARGUMENTS
 ```
@@ -884,7 +884,7 @@ If user flow is affected, also use:
 Re-run all three gate scripts one final time right before `/opsx:verify`:
 
 ```
-scripts/check-openspec-gate.sh $ARGUMENTS
+AIWK_OPENSPEC_MODE=archive scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
 scripts/check-v5-review.sh $ARGUMENTS
 ```
@@ -2049,6 +2049,16 @@ fi
 
 if [ "$missing" -ne 0 ]; then
   exit 1
+fi
+
+# Archive mode: verify all tasks are marked complete [x]
+# Triggered by AIWK_OPENSPEC_MODE=archive (used by /spcrg-archive gate)
+if [ "${AIWK_OPENSPEC_MODE:-}" = "archive" ] && [ -f "$base/tasks.md" ]; then
+  unchecked=$(grep -c "^- \[ \]" "$base/tasks.md" 2>/dev/null) || unchecked=0
+  if [ "$unchecked" -gt 0 ]; then
+    echo "BLOCKED: $unchecked unchecked task(s) in $base/tasks.md — all tasks must be [x] before archive"
+    exit 1
+  fi
 fi
 
 echo "OpenSpec gate passed for $change_id"
