@@ -20,7 +20,7 @@ Do not proceed until a concrete change-id is chosen.
 Before verification or archive, run:
 
 ```
-scripts/check-openspec-gate.sh $ARGUMENTS
+AIWK_OPENSPEC_MODE=archive scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
 scripts/check-v5-review.sh $ARGUMENTS
 ```
@@ -89,7 +89,7 @@ If user flow is affected, also use:
 Re-run all three gate scripts one final time right before `/opsx:verify`:
 
 ```
-scripts/check-openspec-gate.sh $ARGUMENTS
+AIWK_OPENSPEC_MODE=archive scripts/check-openspec-gate.sh $ARGUMENTS
 scripts/check-crg-evidence.sh $ARGUMENTS
 scripts/check-v5-review.sh $ARGUMENTS
 ```

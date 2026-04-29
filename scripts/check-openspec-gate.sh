@@ -33,4 +33,14 @@ if [ "$missing" -ne 0 ]; then
   exit 1
 fi
 
+# Archive mode: verify all tasks are marked complete [x]
+# Triggered by AIWK_OPENSPEC_MODE=archive (used by /spcrg-archive gate)
+if [ "${AIWK_OPENSPEC_MODE:-}" = "archive" ] && [ -f "$base/tasks.md" ]; then
+  unchecked=$(grep -c "^- \[ \]" "$base/tasks.md" 2>/dev/null) || unchecked=0
+  if [ "$unchecked" -gt 0 ]; then
+    echo "BLOCKED: $unchecked unchecked task(s) in $base/tasks.md — all tasks must be [x] before archive"
+    exit 1
+  fi
+fi
+
 echo "OpenSpec gate passed for $change_id"
