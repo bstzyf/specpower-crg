@@ -55,3 +55,9 @@ If root cause is unclear, also use:
 If expected behavior changes, stop and upgrade to:
 
 /opsx:propose fix-{bug-name}
+
+## V5 Rule: Read Before Decide
+
+Before writing a diagnosis or decision, read the actual source files for
+the relevant CRG hits. Use CRG to locate; use source reading to decide.
+Do not write raw CRG output as evidence. Write decision evidence.

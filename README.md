@@ -4,6 +4,8 @@ AI Workflow Kit for Claude Code — wraps OpenSpec OPSX + Superpowers + code-rev
 
 The kit's core value isn't just the commands — each command embeds **gate scripts** as its first step, so a phase can't start until the OpenSpec artifacts and CRG evidence from the previous phase actually exist.
 
+> **V5:** CRG upgraded from evidence collector to code navigator + risk verifier.
+
 ## What's inside
 
 ```
@@ -25,10 +27,38 @@ scripts/
   install-ai-workflow-kit.sh   # self-contained installer (auto-generated)
   build-installer.sh           # regenerates the installer from source
   verify-install.sh            # §14 acceptance checks
-  check-crg-evidence.sh        # CRG evidence gate
+  check-crg-evidence.sh        # CRG evidence gate (structured schema validation)
   check-openspec-gate.sh       # OpenSpec artifact gate
+  check-v5-review.sh           # Quantified Review validation (archive_ready gate)
+  check-command-protocols.sh   # V5 keyword verification across all commands
   detect-change-id.sh          # list active changes (used for $ARGUMENTS-missing flow)
+  run-tests.sh                 # script regression test runner (framework-dev only)
+
+.ai-workflow-kit/
+  config.json                  # team-configurable thresholds (committed)
+  state/<change-id>.json       # per-developer phase progression (gitignored)
+
+tests/fixtures/                # regression fixtures for gate scripts (framework-dev only)
 ```
+
+## V5 Workflow
+
+```
+Requirement → CRG NAVIGATE → Agent READ → Agent DECIDE
+           → Superpowers DO → CRG VERIFY → OpenSpec ARCHIVE
+```
+
+Each phase builds on the previous phase's evidence. No blind re-search.
+
+## V5 vs V1
+
+| Aspect | V1 | V5 |
+|---|---|---|
+| CRG role | Evidence collector (list tools) | Code navigator + risk verifier |
+| Evidence format | Free-text with tool names | Structured schemas with required fields |
+| Plan granularity | Module-level tasks | file:function with TDD steps |
+| Dev pre-phase | Ritualistic broad CRG queries | Delta Check (skip if continuous) |
+| Review output | Advisory list | Quantified verdict with archive_ready gate |
 
 ## Install into another project
 
@@ -49,9 +79,10 @@ After changing any command, skill, or gate script, regenerate the installer:
 ```bash
 ./scripts/build-installer.sh
 ./scripts/verify-install.sh .
+./scripts/run-tests.sh
 ```
 
-Both should finish green before committing.
+All three should finish green before committing.
 
 ## Prerequisites
 

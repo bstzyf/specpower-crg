@@ -67,3 +67,17 @@ If production user flow is affected:
 Run critical tests and E2E if relevant.
 
 Stop if blast radius exceeds hotfix scope.
+
+## V5 Rule: Read Before Decide
+
+Before writing a diagnosis or decision, read the actual source files for
+the relevant CRG hits. Use CRG to locate; use source reading to decide.
+Do not write raw CRG output as evidence. Write decision evidence.
+
+## V5 Gate on Archive
+
+If a hotfix OpenSpec record exists (`openspec/changes/hotfix-{issue-id}/`),
+running `/opsx:verify` or `/opsx:archive` requires all V5 gates:
+- scripts/check-openspec-gate.sh hotfix-{issue-id}
+- scripts/check-crg-evidence.sh hotfix-{issue-id}
+- scripts/check-v5-review.sh hotfix-{issue-id}

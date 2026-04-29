@@ -19,7 +19,7 @@ note() { printf "  %s\n" "$*"; }
 ok()   { printf "  \033[32mok\033[0m  %s\n" "$*"; }
 bad()  { printf "  \033[31mfail\033[0m %s\n" "$*"; fail=$((fail+1)); }
 
-echo "[1/4] commands exist"
+echo "[1/5] commands exist"
 required_commands=(
   .claude/commands/spcrg-start.md
   .claude/commands/spcrg-plan.md
@@ -36,11 +36,13 @@ for f in "${required_commands[@]}"; do
 done
 
 echo ""
-echo "[2/4] gate scripts exist and are executable"
+echo "[2/5] gate scripts exist and are executable"
 required_scripts=(
   scripts/check-crg-evidence.sh
   scripts/check-openspec-gate.sh
   scripts/detect-change-id.sh
+  scripts/check-v5-review.sh
+  scripts/check-command-protocols.sh
 )
 for f in "${required_scripts[@]}"; do
   if [ ! -f "$f" ]; then
@@ -53,7 +55,7 @@ for f in "${required_scripts[@]}"; do
 done
 
 echo ""
-echo "[3/4] commands embed gate script calls"
+echo "[3/5] commands embed gate script calls"
 gated_commands=(
   .claude/commands/spcrg-plan.md
   .claude/commands/spcrg-dev.md
@@ -74,7 +76,7 @@ for f in "${gated_commands[@]}"; do
 done
 
 echo ""
-echo "[4/4] spcrg-start.md runs gate after artifacts"
+echo "[4/5] spcrg-start.md runs gate after artifacts"
 if [ -f .claude/commands/spcrg-start.md ]; then
   if grep -q "check-openspec-gate.sh" .claude/commands/spcrg-start.md \
      && grep -q "check-crg-evidence.sh" .claude/commands/spcrg-start.md; then
@@ -82,6 +84,18 @@ if [ -f .claude/commands/spcrg-start.md ]; then
   else
     bad "spcrg-start.md must embed both gate scripts"
   fi
+fi
+
+echo ""
+echo "[5/5] command files contain V5 protocol keywords"
+if [ -x "$root/scripts/check-command-protocols.sh" ]; then
+  if "$root/scripts/check-command-protocols.sh" "$root/.claude/commands" >/dev/null 2>&1; then
+    ok "V5 protocol keywords present in all commands"
+  else
+    bad "V5 protocol keywords missing (run: scripts/check-command-protocols.sh .claude/commands)"
+  fi
+else
+  bad "scripts/check-command-protocols.sh not found or not executable"
 fi
 
 echo ""

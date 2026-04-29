@@ -57,6 +57,27 @@ emit_file "scripts/check-crg-evidence.sh"   "scripts/check-crg-evidence.sh"
 emit_file "scripts/check-openspec-gate.sh"  "scripts/check-openspec-gate.sh"
 emit_file "scripts/detect-change-id.sh"     "scripts/detect-change-id.sh"
 emit_file "scripts/verify-install.sh"       "scripts/verify-install.sh"
+emit_file "scripts/check-v5-review.sh"      "scripts/check-v5-review.sh"
+emit_file "scripts/check-command-protocols.sh" "scripts/check-command-protocols.sh"
+
+cat >> "$tmp" <<'CONFIG_SECTION'
+
+# Create config only if missing (preserve user customizations)
+if [ ! -f .ai-workflow-kit/config.json ]; then
+  mkdir -p .ai-workflow-kit
+CONFIG_SECTION
+
+printf 'cat > .ai-workflow-kit/config.json <<'\''AIWK_EOF'\''\n' >> "$tmp"
+cat ".ai-workflow-kit/config.json" >> "$tmp"
+printf 'AIWK_EOF\n' >> "$tmp"
+
+cat >> "$tmp" <<'CONFIG_END'
+  echo "Created default .ai-workflow-kit/config.json"
+else
+  echo "Keeping existing .ai-workflow-kit/config.json"
+fi
+
+CONFIG_END
 
 cat >> "$tmp" <<'FOOTER'
 
@@ -64,6 +85,8 @@ chmod +x scripts/check-crg-evidence.sh
 chmod +x scripts/check-openspec-gate.sh
 chmod +x scripts/detect-change-id.sh
 chmod +x scripts/verify-install.sh
+chmod +x scripts/check-v5-review.sh
+chmod +x scripts/check-command-protocols.sh
 
 echo ""
 echo "AI Workflow Kit installed."
