@@ -42,16 +42,24 @@ If missing: tell the user to run `/spcrg-plan $ARGUMENTS` first, then stop.
 
 ## Read loop configuration
 
-Read `.ai-workflow-kit/config.json` for:
-- `loop.maxIterations` (default: 10)
-- `loop.completionPromise` (default: "ARCHIVE_READY")
+Read `.ai-workflow-kit/config.json` and extract:
+- `loop.maxIterations` → bind to variable `MAX_ITERATIONS` (fallback: `10`)
+- `loop.completionPromise` → bind to variable `COMPLETION_PROMISE` (fallback: `ARCHIVE_READY`)
 
 ## Start Ralph Loop
 
-Invoke:
+Invoke `/ralph-loop` with the exact argument values from the previous step.
+Substitute `MAX_ITERATIONS` and `COMPLETION_PROMISE` with their actual values
+(the angle-bracketed names below are placeholders, NOT literal strings):
 
 ```
-/ralph-loop "<navigator-prompt below>" --max-iterations <maxIterations> --completion-promise "<completionPromise>"
+/ralph-loop "<navigator-prompt from next section>" --max-iterations MAX_ITERATIONS --completion-promise "COMPLETION_PROMISE"
+```
+
+With default config, this becomes:
+
+```
+/ralph-loop "<navigator-prompt>" --max-iterations 10 --completion-promise "ARCHIVE_READY"
 ```
 
 ### Navigator Prompt
@@ -71,14 +79,13 @@ Invoke:
 如果存在未完成的 task：
 1. 定位当前 phase（Phase Plan 中第一个含有未完成 task 的 phase）
 2. 读该 phase 的 expected_files 和 expected_symbols
-3. 对该 phase 内的每个未完成 task：
-   - 使用 `superpowers:test-driven-development`：
-     - RED：写一个精确描述 Required Change 的失败测试
-     - GREEN：写最小实现让测试通过
-     - REFACTOR：改进代码结构，确认测试仍通过
-   - 多个独立 task 之间使用 `superpowers:subagent-driven-development` 并行执行
-4. 每个 task 实现后标记 `- [x]`
-5. 结束本轮（下一轮进入阶段 B）
+3. 使用 `superpowers:subagent-driven-development` 驱动该 phase 的 task 执行（支持并行或顺序，每个 task 分派独立的 subagent）
+4. 每个 task 内部，使用 `superpowers:test-driven-development` 完成 TDD 循环：
+   - RED：写一个精确描述 Required Change 的失败测试
+   - GREEN：写最小实现让测试通过
+   - REFACTOR：改进代码结构，确认测试仍通过
+5. 每个 task 实现后标记 `- [x]`
+6. 结束本轮（下一轮进入阶段 B）
 
 如果所有 task 已 `[x]` → 跳到阶段 B
 
