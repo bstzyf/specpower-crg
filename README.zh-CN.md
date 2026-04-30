@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-SpecPower-CRG 是一个 **Claude Code 项目级工作流框架**。它通过 9 个 slash 命令（以 `/spcrg-` 为前缀），把从需求分析到归档的完整开发流程产品化。
+SpecPower-CRG 是一个 **Claude Code 项目级工作流框架**。它通过 10 个 slash 命令（以 `/spcrg-` 为前缀），把从需求分析到归档的完整开发流程产品化。
 
 **核心循环：**
 
@@ -37,19 +37,34 @@ Superpowers 说：怎么做才能高质量地做到
 
 ---
 
-## 9 个命令总览
+## 10 个命令总览
 
 | 命令 | 用途 | 适用场景 |
 |---|---|---|
 | `/spcrg-start <描述>` | 启动新变更 | 新功能、大改动 |
 | `/spcrg-plan <change-id>` | 制定实施计划 | start 完成后 |
-| `/spcrg-dev <change-id>` | TDD 执行开发 | plan 审批后 |
-| `/spcrg-review <change-id>` | 量化审查 | 开发完成后 |
+| `/spcrg-dev <change-id>` | 手动档 TDD 开发 | plan 审批后（精细控制） |
+| `/spcrg-loop <change-id>` | **自动档** Ralph 驱动迭代开发 | plan 审批后（全自动 dev+review） |
+| `/spcrg-review <change-id>` | 量化审查 | 手动档开发完成后（loop 模式下内置） |
 | `/spcrg-archive <change-id>` | 验证并归档 | review 通过后 |
 | `/spcrg-bugfix <bug 描述>` | 修复 bug | 小型修复，不改变行为 |
 | `/spcrg-hotfix <问题描述>` | 生产热修复 | 紧急线上问题 |
 | `/spcrg-refactor <目标>` | 重构 | 保持行为不变的结构改善 |
 | `/spcrg-audit <change-id>` | 审计证据完整性 | 随时检查 |
+
+### 两种开发模式
+
+**手动档（精细控制）：** 适合小范围改动、希望每个 phase 都停下确认
+```
+/spcrg-start → /spcrg-plan → /spcrg-dev → /spcrg-review → /spcrg-archive
+```
+
+**自动档（loop 模式，v5.1 新增）：** 适合任务清晰、需求稳定的改动，让 Claude 自迭代收敛到 archive-ready
+```
+/spcrg-start → /spcrg-plan → /spcrg-loop → /spcrg-archive
+```
+
+`/spcrg-loop` 基于已安装的 [ralph-loop](https://ghuntley.com/ralph/) 插件，用一个 8 阶段的 Navigator Prompt 驱动 Claude 自动执行"实现 → 测试 → 验证 → 审查"的循环。每轮内部调用相同的 superpowers skills（TDD / subagent-driven-dev / systematic-debugging / requesting-code-review / verification-before-completion），并产出完整的 V5 证据（Post-Phase Verification + Quantified Review）。默认上限 10 轮，promise 命中 `ARCHIVE_READY` 即提前终止。
 
 ---
 
@@ -236,6 +251,40 @@ Superpowers 说：怎么做才能高质量地做到
 
 ---
 
+#### 替代路径：使用 `/spcrg-loop` 代替步骤 3 + 4
+
+如果你选择自动档，可以用一个命令代替 dev + review：
+
+```
+/spcrg-loop add-todo-search
+```
+
+**Claude 会做什么：**
+
+1. 跑同样的门禁（check-openspec-gate + check-crg-evidence）
+2. 读 config.json 取 `loop.maxIterations` (默认 10) 和 `loop.completionPromise` (默认 ARCHIVE_READY)
+3. 调用 ralph-loop 插件，喂入一个 **Navigator Prompt**，每一轮按 8 阶段决策树判断当前该做什么：
+
+```
+阶段 A：实现未完成 task（superpowers:subagent-driven-development + test-driven-development）
+阶段 B：运行 verification_command，失败用 superpowers:systematic-debugging 修复
+阶段 C：补齐 coverage 和 E2E（真实环境，核心路径不 mock）
+阶段 D：运行 CRG 工具 + 写 Post-Phase Verification（V5 14 字段 schema）
+阶段 E：检查所有 phase 是否 verdict=PASS
+阶段 F：superpowers:requesting-code-review + 写 Quantified Review
+阶段 G：跑 check-v5-review.sh 自检
+阶段 H：superpowers:verification-before-completion + 输出 <promise>ARCHIVE_READY</promise>
+```
+
+4. loop 终止条件：promise 命中（正常退出）或 10 轮上限（兜底保护）
+5. loop 结束后命令文件再跑一次 check-v5-review.sh 并更新 state
+
+**典型轮次：** 小功能 3–5 轮、中等 6–8 轮、复杂 8–10 轮。
+
+**遇到不可自修复的问题时：** verdict=NEEDS_HUMAN_DECISION，跳过该 task/phase 继续，最终报告里列出需人工决策的项目。
+
+---
+
 #### 第 5 步：归档 `/spcrg-archive`
 
 ```
@@ -340,6 +389,7 @@ Superpowers 说：怎么做才能高质量地做到
 | `/spcrg-start` | 末尾（产出证据后） | openspec-gate + crg-evidence (shape-only) | 不请求审批，先修复 |
 | `/spcrg-plan` | 首步 | openspec-gate + crg-evidence (strict) | 不跑 writing-plans |
 | `/spcrg-dev` | 首步 | openspec-gate + crg-evidence (strict) | 不跑开发 |
+| `/spcrg-loop` | 首步 | openspec-gate + crg-evidence (strict) | 不启动 Ralph Loop |
 | `/spcrg-review` | 首步 | openspec-gate + crg-evidence (strict) | 不进入审查 |
 | `/spcrg-archive` | 首步 + /opsx:verify 前 | openspec-gate (archive mode) + crg-evidence + v5-review | 不归档 |
 | `/spcrg-audit` | 首步 | 三个脚本全跑 | **仅报告**，不阻断 |
@@ -385,6 +435,10 @@ Superpowers 说：怎么做才能高质量地做到
     "requireE2EForAffectedFlows": true,
     "allowHumanOverride": true,
     "requireReviewBeforeArchive": true
+  },
+  "loop": {
+    "maxIterations": 10,
+    "completionPromise": "ARCHIVE_READY"
   }
 }
 ```
@@ -399,6 +453,8 @@ Superpowers 说：怎么做才能高质量地做到
 | `requireE2EForAffectedFlows` | 受影响用户流是否强制要求 E2E | true |
 | `allowHumanOverride` | verdict=BLOCKING 时是否允许人工豁免 | true |
 | `requireReviewBeforeArchive` | 归档前是否强制要求 Quantified Review | true |
+| `loop.maxIterations` | `/spcrg-loop` 调用 ralph-loop 的最大迭代轮次 | 10 |
+| `loop.completionPromise` | `/spcrg-loop` 完成信号字符串 | "ARCHIVE_READY" |
 
 **团队自定义：** 直接编辑 config.json，所有脚本会读取最新值。
 
@@ -453,7 +509,11 @@ code-review-graph build
 # 在 Claude Code 内执行：
 /plugin install superpowers@claude-plugins-official
 
-# 4. jq（配置文件读取，推荐但非必需）
+# 4. ralph-loop（使用 /spcrg-loop 命令时必需）
+# 在 Claude Code 内执行：
+/plugin install ralph-loop
+
+# 5. jq（配置文件读取，推荐但非必需）
 brew install jq  # macOS
 # 没有 jq 会 fallback 到 python3
 ```
@@ -466,7 +526,7 @@ bash /path/to/specpower-crg/scripts/install-ai-workflow-kit.sh
 ```
 
 安装器会：
-- 写入 `.claude/commands/spcrg-*.md`（9 个命令）
+- 写入 `.claude/commands/spcrg-*.md`（10 个命令）
 - 写入 `.claude/skills/project-development-workflow/SKILL.md`
 - 写入 `scripts/check-*.sh`（5 个门禁脚本）
 - 创建 `.ai-workflow-kit/config.json`（如果不存在）
@@ -558,13 +618,13 @@ openspec/changes/archive/add-todo-search/
 ```
 specpower-crg/
 ├── .ai-workflow-kit/
-│   └── config.json                 ← 阈值配置（团队共享，入库）
+│   └── config.json                 ← 阈值配置 + loop 默认值（团队共享，入库）
 ├── .claude/
-│   ├── commands/spcrg-*.md         ← 9 个命令文件
+│   ├── commands/spcrg-*.md         ← 10 个命令文件
 │   └── skills/.../SKILL.md         ← 项目级 Skill
 ├── scripts/
 │   ├── check-openspec-gate.sh      ← OpenSpec 文件门禁
-│   ├── check-crg-evidence.sh       ← CRG 证据结构门禁
+│   ├── check-crg-evidence.sh       ← CRG 证据结构门禁（表头列名动态定位）
 │   ├── check-v5-review.sh          ← 量化审查门禁
 │   ├── check-command-protocols.sh  ← V5 关键词验收
 │   ├── verify-install.sh           ← 安装验收（5 步）
@@ -572,7 +632,9 @@ specpower-crg/
 │   ├── run-tests.sh                ← fixture 回归测试
 │   ├── build-installer.sh          ← 生成安装器
 │   └── install-ai-workflow-kit.sh  ← 自包含安装器（生成产物）
-├── tests/fixtures/                 ← 门禁脚本的测试用例
+├── tests/
+│   ├── fixtures/                   ← 门禁脚本的回归测试用例
+│   └── integration/                ← 真实 Claude 集成测试（17 个 claude -p 用例）
 ├── docs/superpowers/
 │   ├── specs/                      ← 设计 spec
 │   └── plans/                      ← 实施 plan

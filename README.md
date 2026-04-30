@@ -13,6 +13,7 @@ The kit's core value isn't just the commands — each command embeds **gate scri
   spcrg-start.md       # propose + CRG Context Pass + brainstorming; gate runs at the END before approval
   spcrg-plan.md        # rewrite tasks.md with TDD + CRG Planning Analysis; gate runs FIRST
   spcrg-dev.md         # subagent-driven TDD with CRG pre/post phase checks; gate runs FIRST
+  spcrg-loop.md        # Ralph-driven iterative dev loop (replaces manual dev+review); gate runs FIRST
   spcrg-review.md      # OpenSpec + CRG + Superpowers review; gate runs FIRST
   spcrg-archive.md     # verification + CRG Archive Gate + /opsx:verify + /opsx:archive; gate runs FIRST and again before /opsx:verify
   spcrg-bugfix.md      # systematic debugging + CRG diagnosis (no gate for plain bugfix)
@@ -35,10 +36,12 @@ scripts/
   run-tests.sh                 # script regression test runner (framework-dev only)
 
 .ai-workflow-kit/
-  config.json                  # team-configurable thresholds (committed)
+  config.json                  # team-configurable thresholds + loop defaults (committed)
   state/<change-id>.json       # per-developer phase progression (gitignored)
 
-tests/fixtures/                # regression fixtures for gate scripts (framework-dev only)
+tests/
+  fixtures/                    # regression fixtures for gate scripts
+  integration/                 # real-Claude integration tests (17 claude -p cases)
 ```
 
 ## V5 Workflow
@@ -49,6 +52,26 @@ Requirement → CRG NAVIGATE → Agent READ → Agent DECIDE
 ```
 
 Each phase builds on the previous phase's evidence. No blind re-search.
+
+## Two development modes (pick per change)
+
+**Manual mode** (fine-grained control):
+```
+/spcrg-start → /spcrg-plan → /spcrg-dev → /spcrg-review → /spcrg-archive
+```
+
+**Loop mode** (Ralph-driven auto-iteration, added v5.1):
+```
+/spcrg-start → /spcrg-plan → /spcrg-loop → /spcrg-archive
+```
+
+`/spcrg-loop` wraps the installed [ralph-loop](https://ghuntley.com/ralph/) plugin
+with an 8-stage navigator prompt that makes Claude self-iterate through
+implement → test → verify → review until `archive_ready: yes`. Inside each
+iteration it invokes the same superpowers skills (TDD, subagent-driven-dev,
+systematic-debugging, requesting-code-review, verification-before-completion)
+and produces the full V5 evidence (Post-Phase Verification + Quantified Review).
+Default cap: 10 iterations, stop-on-promise `ARCHIVE_READY`.
 
 ## V5 vs V1
 
@@ -89,6 +112,7 @@ All three should finish green before committing.
 - OpenSpec — `npm install -g @fission-ai/openspec@latest`
 - Superpowers — `/plugin install superpowers@claude-plugins-official`
 - code-review-graph — `pipx install code-review-graph && code-review-graph install && code-review-graph build`
+- ralph-loop (required only for `/spcrg-loop`) — install via `/plugin`
 
 See `CLAUDE.md` for detailed setup and gate enforcement matrix.
 
@@ -97,8 +121,9 @@ See `CLAUDE.md` for detailed setup and gate enforcement matrix.
 ```
 /spcrg-start <description>
 /spcrg-plan <change-id>
-/spcrg-dev <change-id>
-/spcrg-review <change-id>
+/spcrg-dev <change-id>         # manual-mode dev
+/spcrg-loop <change-id>        # loop-mode dev (replaces dev+review)
+/spcrg-review <change-id>      # manual-mode review (not needed after /spcrg-loop)
 /spcrg-archive <change-id>
 /spcrg-bugfix <bug>
 /spcrg-hotfix <incident>
