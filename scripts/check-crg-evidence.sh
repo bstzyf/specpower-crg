@@ -348,17 +348,43 @@ validate_precision_plan() {
     _fail "Function-Level Change Map has >= $PRECISION_PLAN_MIN_TASKS rows" "found $map_row_count"
   fi
 
-  # All 7 columns non-empty per Change Map row; validate Target and Risk columns
-  # Expected columns: Target | Change Type | Rationale | Depends On | Risk | Test Required | Notes
+  # All 7 columns non-empty per Change Map row; validate Target and Risk columns.
+  # Column positions for Target and Risk are detected from the header row by name,
+  # so the script works with both legacy schema (Target | Change Type | Rationale
+  # | Depends On | Risk | Test Required | Notes) and the spcrg-plan schema
+  # (Task | Target | Current Behavior | Required Change | Tests | Reference Pattern | Risk).
   local map_row_num=0
   local map_header_skipped=false
+  local target_col_idx=0
+  local risk_col_idx=0
   while IFS= read -r row; do
     echo "$row" | grep -q "^|" || continue
     echo "$row" | grep -q "^|[-: |]*|$" && continue
 
-    # Skip the header row (first non-separator table row)
+    # Parse the header row (first non-separator row) to locate Target and Risk columns
     if ! $map_header_skipped; then
       map_header_skipped=true
+      local header_inner="${row#|}"
+      header_inner="${header_inner%|}"
+      local h_idx=0
+      IFS='|' read -ra header_cols <<< "$header_inner"
+      for hcol in "${header_cols[@]}"; do
+        h_idx=$((h_idx + 1))
+        local trimmed_h
+        trimmed_h=$(echo "$hcol" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [ "$trimmed_h" = "Target" ] && target_col_idx=$h_idx
+        [ "$trimmed_h" = "Risk" ] && risk_col_idx=$h_idx
+      done
+      if [ "$target_col_idx" -eq 0 ]; then
+        _fail "Function-Level Change Map has Target column in header" "Target header not found"
+      else
+        _pass "Function-Level Change Map has Target column in header (col $target_col_idx)"
+      fi
+      if [ "$risk_col_idx" -eq 0 ]; then
+        _fail "Function-Level Change Map has Risk column in header" "Risk header not found"
+      else
+        _pass "Function-Level Change Map has Risk column in header (col $risk_col_idx)"
+      fi
       continue
     fi
 
@@ -380,8 +406,8 @@ validate_precision_plan() {
       if [ -z "$trimmed" ] || echo "$trimmed" | grep -q "^[-:]*$"; then
         all_filled=false
       fi
-      [ "$col_num" -eq 1 ] && target_col="$trimmed"
-      [ "$col_num" -eq 5 ] && risk_col="$trimmed"
+      [ "$col_num" -eq "$target_col_idx" ] && target_col="$trimmed"
+      [ "$col_num" -eq "$risk_col_idx" ] && risk_col="$trimmed"
     done
 
     if $all_filled && [ "$col_num" -ge 7 ]; then
